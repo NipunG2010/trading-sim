@@ -2,8 +2,7 @@
 node_modules/
 dist/
 *.env
-accounts.json# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
+accounts.json
 # dependencies
 /node_modules
 /.pnp
