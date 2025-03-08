@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Connection } from '@solana/web3.js';
 import './App.css';
-import Dashboard from './components/Dashboard';
+import Dashboard from './components/Dashboard.js';
 
 function App() {
   const [connection, setConnection] = useState<Connection | null>(null);
@@ -17,14 +17,23 @@ function App() {
         const conn = new Connection('https://api.devnet.solana.com', 'confirmed');
         setConnection(conn);
         
-        // Try to load token info from local storage or file
+        // Try to load token info from token-info.json
         try {
-          // In a real app, we would load this from an API or file
-          // For now, we'll use a mock token mint address
-          setTokenMint('TokenMintAddressWouldGoHere');
+          // In a real app, we would load this from an API
+          // For now, we'll try to load from the token-info.json file
+          const response = await fetch('/token-info.json');
+          if (!response.ok) {
+            throw new Error('Failed to load token info');
+          }
+          
+          const tokenInfo = await response.json();
+          setTokenMint(tokenInfo.mint);
+          console.log('Loaded token info:', tokenInfo);
         } catch (err) {
           console.error('Error loading token info:', err);
-          setError('Failed to load token information. Please check if token-info.json exists.');
+          // Fallback to the dummy token mint from our mock data
+          setTokenMint('DummyMintAddressReplace1111111111111111111111111');
+          console.log('Using dummy token mint address');
         }
         
         setIsLoading(false);

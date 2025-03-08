@@ -12,15 +12,16 @@
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
     "chart.js": "^4.4.8",
-    "react": "^19.0.0",
+    "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "^18.2.0",
     "react-scripts": "^5.0.1",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "DISABLE_ESLINT_PLUGIN=true NODE_OPTIONS=--no-deprecation react-scripts start",
+    "start-windows": "set DISABLE_ESLINT_PLUGIN=true && set NODE_OPTIONS=--no-deprecation && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
@@ -36,13 +37,14 @@
     "distribute-sol": "node src/distribute-sol.js",
     "create-token": "npm run build-ts && node dist/create-token.js",
     "create-token-js": "node src/create-token.js",
+    "run-trading-js": "node src/run-trading.js",
     "test-connection": "npm run build-ts && node dist/test.js",
     "test-esm": "node src/test-esm.js",
     "simple-test": "npm run build-ts && node dist/simple-test.js",
     "solana-test": "node src/simple-solana-test.js",
     "node-test": "node src/node-test.js",
     "run-trading": "npm run build-ts && node dist/run-trading.js",
-    "run-pattern": "npm run build-ts && node dist/run-trading.js"
+    "run-pattern": "node src/run-trading.js"
   },
   "eslintConfig": {
     "extends": [
