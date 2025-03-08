@@ -1,4 +1,4 @@
-// src/test.ts
+// src/test-esm.js
 import { Connection } from "@solana/web3.js";
 
 const connection = new Connection("https://api.devnet.solana.com", "confirmed");
@@ -13,4 +13,4 @@ async function testConnection() {
 }
 
 // Run the test
-testConnection().catch(error => console.error("Error:", error));
+testConnection().catch(error => console.error("Error:", error)); 

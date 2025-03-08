@@ -1,4 +1,3 @@
-// src/accounts.ts
 import { Keypair } from "@solana/web3.js";
 import fs from "fs";
 
@@ -6,8 +5,8 @@ import fs from "fs";
  * Generates 50 Solana keypairs with staggered timing (1-5s delays)
  * to simulate organic wallet creation.
  */
-async function createAccounts(): Promise<Keypair[]> {
-  const accounts: Keypair[] = [];
+async function createAccounts() {
+  const accounts = [];
   for (let i = 0; i < 50; i++) {
     // Random delay between 1-5 seconds
     await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
@@ -40,4 +39,4 @@ async function saveAccounts() {
 }
 
 // Run the account creation
-saveAccounts();
+saveAccounts(); 
