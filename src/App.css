@@ -13,9 +13,10 @@ body {
 }
 
 .App {
+  text-align: center;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  background-color: #121212;
+  color: #f5f5f5;
 }
 
 .App-logo {
@@ -30,15 +31,12 @@ body {
 }
 
 .App-header {
-  background-color: #4e44ce;
-  color: white;
-  padding: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  text-align: center;
+  font-size: calc(10px + 2vmin);
 }
 
 .App-header p {
@@ -47,19 +45,19 @@ body {
 }
 
 .App-header button {
-  background-color: white;
-  color: #4e44ce;
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #9945FF;
+  color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
   border-radius: 4px;
+  font-size: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.3s;
 }
 
 .App-header button:hover {
-  background-color: #f0f0f0;
-  transform: translateY(-2px);
+  background-color: #8035ee;
 }
 
 /* Responsive adjustments */

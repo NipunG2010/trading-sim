@@ -10,6 +10,9 @@
   --warning-color: #ff9900;
   --danger-color: #ff4d4d;
   --whale-color: rgba(67, 97, 238, 0.15);
+  --terminal-background: #0f0f0f;
+  --terminal-text: #14F195;
+  --button-hover: #2a2a2a;
 }
 
 .dashboard {
@@ -127,6 +130,11 @@
   padding: 15px;
   margin-bottom: 20px;
   height: 300px;
+}
+
+.trading-view-container {
+  height: 400px;
+  grid-column: 1 / -1;
 }
 
 .chart-container h3 {
@@ -301,6 +309,143 @@
   margin-top: 30px;
 }
 
+.admin-tab {
+  background-color: var(--card-background);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.admin-tab h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 18px;
+}
+
+.admin-panel {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  height: 600px;
+}
+
+.admin-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.control-section {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.control-section h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: var(--secondary-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-button {
+  padding: 10px 15px;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.admin-button:hover:not(:disabled) {
+  background-color: var(--button-hover);
+}
+
+.admin-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-terminal {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--terminal-background);
+  border-radius: 8px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.terminal-header h4 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.clear-button {
+  padding: 5px 10px;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s;
+}
+
+.clear-button:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.clear-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.terminal-output {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--terminal-text);
+  white-space: pre-wrap;
+}
+
+.command-line {
+  color: #fff;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+.terminal-cursor {
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .start-button, 
 .stop-button {
   padding: 10px 20px;
@@ -335,6 +480,27 @@
   background-color: #ff3333;
 }
 
+.tradingview-widget-container {
+  height: 100%;
+  width: 100%;
+}
+
+.tradingview-widget-container__widget {
+  height: calc(100% - 32px);
+  width: 100%;
+}
+
+.tradingview-widget-copyright {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.blue-text {
+  color: #2962FF;
+}
+
 @media (max-width: 768px) {
   .dashboard-header {
     flex-direction: column;
@@ -351,5 +517,21 @@
   
   .stats-container {
     grid-template-columns: 1fr;
+  }
+  
+  .admin-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .dashboard-tabs button {
+    flex: 1 0 auto;
+    padding: 8px 10px;
+    font-size: 14px;
   }
 } 

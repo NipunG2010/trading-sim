@@ -124,25 +124,25 @@ async function runTradingSequence(patterns: Array<{
 // Default 48-hour trading sequence
 const defaultSequence = [
   // Phase 1: Initial accumulation (6 hours)
-  { type: 'accumulation', duration: 6 * 60 * 60 * 1000, intensity: 4 },
+  { type: 'accumulation' as TradingPatternType, duration: 6 * 60 * 60 * 1000, intensity: 4 },
   
   // Phase 2: Organic growth (12 hours)
-  { type: 'organic_growth', duration: 12 * 60 * 60 * 1000, intensity: 5 },
+  { type: 'organic_growth' as TradingPatternType, duration: 12 * 60 * 60 * 1000, intensity: 5 },
   
   // Phase 3: Whale activity (3 hours)
-  { type: 'whale_activity', duration: 3 * 60 * 60 * 1000, intensity: 7 },
+  { type: 'whale_activity' as TradingPatternType, duration: 3 * 60 * 60 * 1000, intensity: 7 },
   
   // Phase 4: Layering (6 hours)
-  { type: 'layering', duration: 6 * 60 * 60 * 1000, intensity: 6 },
+  { type: 'layering' as TradingPatternType, duration: 6 * 60 * 60 * 1000, intensity: 6 },
   
   // Phase 5: Retail FOMO (6 hours)
-  { type: 'retail_fomo', duration: 6 * 60 * 60 * 1000, intensity: 8 },
+  { type: 'retail_fomo' as TradingPatternType, duration: 6 * 60 * 60 * 1000, intensity: 8 },
   
   // Phase 6: Wash trading (3 hours)
-  { type: 'wash_trading', duration: 3 * 60 * 60 * 1000, intensity: 9 },
+  { type: 'wash_trading' as TradingPatternType, duration: 3 * 60 * 60 * 1000, intensity: 9 },
   
   // Phase 7: Distribution (12 hours)
-  { type: 'distribution', duration: 12 * 60 * 60 * 1000, intensity: 6 }
+  { type: 'distribution' as TradingPatternType, duration: 12 * 60 * 60 * 1000, intensity: 6 }
 ];
 
 // Command line arguments

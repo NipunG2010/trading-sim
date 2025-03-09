@@ -4,12 +4,11 @@ import { setupToken } from "./token-creation";
 // Connect to Solana devnet
 const connection = new Connection("https://api.devnet.solana.com", "confirmed");
 
-// Run the token setup
-console.log("Starting token creation and distribution process...");
+// Run the token creation and distribution process
 setupToken(connection)
   .then(() => {
     console.log("Token creation and distribution completed successfully!");
   })
-  .catch(error => {
+  .catch((error: Error) => {
     console.error("Error in token setup:", error);
   }); 

@@ -5,9 +5,10 @@ import {
   PublicKey, 
   Transaction, 
   SystemProgram,
-  LAMPORTS_PER_SOL
+  LAMPORTS_PER_SOL,
+  TransactionSignature
 } from "@solana/web3.js";
-import { 
+import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
   createTransferInstruction,
@@ -559,26 +560,14 @@ export class TradingEngine {
       } catch (error) {
         // If account doesn't exist, create it
         transaction.add(
-          createAssociatedTokenAccountInstruction(
-            new PublicKey(from.publicKey),
+          createTransferInstruction(
+            fromTokenAddress,
             toTokenAddress,
-            new PublicKey(to.publicKey),
-            this.mint
+            new PublicKey(from.publicKey),
+            Math.floor(amount * Math.pow(10, this.tokenDecimals))
           )
         );
       }
-      
-      // Add transfer instruction
-      const amountInSmallestUnits = Math.floor(amount * Math.pow(10, this.tokenDecimals));
-      
-      transaction.add(
-        createTransferInstruction(
-          fromTokenAddress,
-          toTokenAddress,
-          new PublicKey(from.publicKey),
-          amountInSmallestUnits
-        )
-      );
       
       // Add to transaction queue
       this.transactionQueue.enqueue(
@@ -586,11 +575,11 @@ export class TradingEngine {
         [from.keypair],
         {
           priority,
-          onSuccess: (signature) => {
+          onSuccess: (signature: TransactionSignature) => {
             console.log(`Trade executed: ${from.publicKey.substring(0, 8)}... -> ${to.publicKey.substring(0, 8)}... Amount: ${amount} tokens`);
             this.signatureTracker.track(signature);
           },
-          onError: (error) => {
+          onError: (error: Error) => {
             console.error(`Trade failed: ${from.publicKey.substring(0, 8)}... -> ${to.publicKey.substring(0, 8)}...`, error);
           }
         }

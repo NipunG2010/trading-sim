@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Connection } from '@solana/web3.js';
 import './App.css';
-import Dashboard from './components/Dashboard.js';
+import Dashboard from './components/Dashboard';
 
 function App() {
   const [connection, setConnection] = useState<Connection | null>(null);

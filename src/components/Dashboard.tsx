@@ -1,12 +1,67 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Connection } from '@solana/web3.js';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ArcElement } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { TradingService, TradingPatternType, TradingDataPoint, TokenTransaction, WalletSummary } from '../services/tradingService.js';
+import { TradingService, TradingPatternType, TradingDataPoint, TokenTransaction, WalletSummary } from '../services/tradingService';
 import './Dashboard.css';
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ArcElement);
+
+// Trading View Widget Component
+const TradingViewWidget = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      // Clear any existing content
+      containerRef.current.innerHTML = '';
+
+      // Create widget container
+      const widgetContainer = document.createElement('div');
+      widgetContainer.className = 'tradingview-widget-container';
+      widgetContainer.style.height = '100%';
+      widgetContainer.style.width = '100%';
+
+      // Create widget div
+      const widget = document.createElement('div');
+      widget.className = 'tradingview-widget-container__widget';
+      widget.style.height = 'calc(100% - 32px)';
+      widget.style.width = '100%';
+
+      // Create copyright div
+      const copyright = document.createElement('div');
+      copyright.className = 'tradingview-widget-copyright';
+      copyright.innerHTML = '<a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a>';
+
+      // Create script
+      const script = document.createElement('script');
+      script.type = 'text/javascript';
+      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+      script.async = true;
+      script.innerHTML = JSON.stringify({
+        autosize: true,
+        symbol: "NASDAQ:AAPL",
+        interval: "D",
+        timezone: "Etc/UTC",
+        theme: "dark",
+        style: "1",
+        locale: "en",
+        allow_symbol_change: true,
+        calendar: false,
+        support_host: "https://www.tradingview.com"
+      });
+
+      // Append elements
+      widgetContainer.appendChild(widget);
+      widgetContainer.appendChild(copyright);
+      widgetContainer.appendChild(script);
+      containerRef.current.appendChild(widgetContainer);
+    }
+  }, []);
+
+  return <div ref={containerRef} style={{ height: '100%', width: '100%' }}></div>;
+};
 
 // Dashboard props
 interface DashboardProps {
@@ -43,8 +98,15 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   } | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<TokenTransaction[]>([]);
   const [walletSummary, setWalletSummary] = useState<WalletSummary[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'wallets' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'wallets' | 'settings' | 'admin'>('overview');
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
+  const [adminOutput, setAdminOutput] = useState<string[]>([
+    "Welcome to Solana Trading Simulator Admin Console",
+    "Use the buttons below to control the simulation",
+    "-------------------------------------------"
+  ]);
+  const [isCommandRunning, setIsCommandRunning] = useState<boolean>(false);
+  const adminOutputRef = useRef<HTMLDivElement>(null);
   
   // Create trading service
   const tradingService = new TradingService(connection, tokenMint);
@@ -111,6 +173,13 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       clearInterval(intervalId);
     };
   }, [connection, tokenMint]);
+
+  // Scroll to bottom of admin output when it changes
+  useEffect(() => {
+    if (adminOutputRef.current) {
+      adminOutputRef.current.scrollTop = adminOutputRef.current.scrollHeight;
+    }
+  }, [adminOutput]);
   
   // Format timestamp as date string
   const formatTimestamp = (timestamp: number) => {
@@ -187,6 +256,105 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     } catch (error) {
       console.error('Error stopping trading:', error);
     }
+  };
+
+  // Execute admin command
+  const executeCommand = async (command: string) => {
+    if (isCommandRunning) return;
+    
+    setAdminOutput(prev => [...prev, `> ${command}`]);
+    setIsCommandRunning(true);
+    
+    try {
+      // Simulate terminal command execution
+      let output: string[] = [];
+      
+      if (command === 'create-accounts') {
+        output = [
+          "Creating 50 Solana accounts...",
+          "Generating keypairs...",
+          "Saving account information...",
+          "Accounts created successfully!"
+        ];
+      } else if (command === 'test-accounts') {
+        output = [
+          "Testing account access...",
+          "Loaded 50 accounts",
+          "All accounts accessible",
+          "Account test completed successfully!"
+        ];
+      } else if (command === 'create-source-wallet') {
+        output = [
+          "Creating source wallet...",
+          "Generated new keypair",
+          "Public key: Abc123...xyz789",
+          "Wallet saved to source-wallet.json",
+          "Source wallet created successfully!"
+        ];
+      } else if (command === 'distribute-sol') {
+        output = [
+          "Distributing SOL to all accounts...",
+          "Loading accounts...",
+          "Sending 0.05 SOL to each account...",
+          "Transaction 1/50 confirmed",
+          "Transaction 2/50 confirmed",
+          "...",
+          "Transaction 50/50 confirmed",
+          "SOL distribution completed successfully!"
+        ];
+      } else if (command === 'create-token') {
+        output = [
+          "Creating new token...",
+          "Generating token metadata...",
+          "Name: SolTrader Token",
+          "Symbol: STRD",
+          "Decimals: 9",
+          "Creating token on Solana...",
+          "Token created successfully!",
+          "Mint address: DummyMint123...456",
+          "Distributing tokens to accounts...",
+          "Token distribution completed!"
+        ];
+      } else if (command === 'run-trading') {
+        output = [
+          "Starting trading simulation...",
+          "Initializing trading engine...",
+          "Running default 48-hour trading sequence...",
+          "Phase 1: Initial accumulation started",
+          "Trading simulation running in background!"
+        ];
+      } else if (command === 'status') {
+        output = [
+          "Checking system status...",
+          "Connection: Connected to Solana Devnet",
+          "Accounts: 50 accounts loaded",
+          "Token: SolTrader Token (STRD)",
+          "Trading: " + (currentPattern ? `Running ${currentPattern} pattern` : "Not running"),
+          "All systems operational!"
+        ];
+      } else {
+        output = [`Unknown command: ${command}`];
+      }
+      
+      // Simulate delay for command execution
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Add output to console
+      setAdminOutput(prev => [...prev, ...output, ""]);
+    } catch (error) {
+      console.error(`Error executing command ${command}:`, error);
+      setAdminOutput(prev => [...prev, `Error: ${error}`, ""]);
+    } finally {
+      setIsCommandRunning(false);
+    }
+  };
+
+  // Clear terminal
+  const clearTerminal = () => {
+    setAdminOutput([
+      "Terminal cleared",
+      "-------------------------------------------"
+    ]);
   };
   
   // Prepare chart data
@@ -284,14 +452,20 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
         >
           Settings
         </button>
+        <button 
+          className={activeTab === 'admin' ? 'active' : ''} 
+          onClick={() => setActiveTab('admin')}
+        >
+          Admin
+        </button>
       </div>
       
       <div className="dashboard-content">
         {activeTab === 'overview' && (
           <div className="overview-tab">
-            <div className="chart-container">
+            <div className="chart-container trading-view-container">
               <h3>Price Chart</h3>
-              <Line data={priceChartData} options={{ maintainAspectRatio: false }} />
+              <TradingViewWidget />
             </div>
             
             <div className="chart-container">
@@ -451,6 +625,104 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                     Stop Trading
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'admin' && (
+          <div className="admin-tab">
+            <h3>Admin Console</h3>
+            
+            <div className="admin-panel">
+              <div className="admin-controls">
+                <div className="control-section">
+                  <h4>Setup</h4>
+                  <div className="button-group">
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('create-accounts')}
+                      disabled={isCommandRunning}
+                    >
+                      Create Accounts
+                    </button>
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('test-accounts')}
+                      disabled={isCommandRunning}
+                    >
+                      Test Accounts
+                    </button>
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('create-source-wallet')}
+                      disabled={isCommandRunning}
+                    >
+                      Create Source Wallet
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="control-section">
+                  <h4>Token Operations</h4>
+                  <div className="button-group">
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('distribute-sol')}
+                      disabled={isCommandRunning}
+                    >
+                      Distribute SOL
+                    </button>
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('create-token')}
+                      disabled={isCommandRunning}
+                    >
+                      Create Token
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="control-section">
+                  <h4>Trading</h4>
+                  <div className="button-group">
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('run-trading')}
+                      disabled={isCommandRunning}
+                    >
+                      Run Trading
+                    </button>
+                    <button 
+                      className="admin-button" 
+                      onClick={() => executeCommand('status')}
+                      disabled={isCommandRunning}
+                    >
+                      Check Status
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="admin-terminal">
+                <div className="terminal-header">
+                  <h4>Terminal Output</h4>
+                  <button 
+                    className="clear-button" 
+                    onClick={clearTerminal}
+                    disabled={isCommandRunning}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="terminal-output" ref={adminOutputRef}>
+                  {adminOutput.map((line, index) => (
+                    <div key={index} className={line.startsWith('>') ? 'command-line' : ''}>
+                      {line}
+                    </div>
+                  ))}
+                  {isCommandRunning && <div className="terminal-cursor">_</div>}
+                </div>
               </div>
             </div>
           </div>

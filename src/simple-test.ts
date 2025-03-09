@@ -1,4 +1,7 @@
 // src/simple-test.ts
+// Add export to make this a module
+export {};
+
 console.log("Hello from TypeScript!");
 
 // Test async/await
