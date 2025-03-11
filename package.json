@@ -31,6 +31,7 @@
     "build-ts": "tsc -p tsconfig.esm.json",
     "create-accounts": "npm run build-ts && node dist/accounts.js",
     "create-accounts-js": "node src/accounts.js",
+    "create-sample-accounts": "node src/create-sample-accounts.js",
     "test-accounts": "npm run build-ts && node dist/test-accounts.js",
     "test-accounts-js": "node src/test-accounts.js",
     "test-accounts-display": "node test-accounts-display.js",

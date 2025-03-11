@@ -1,31 +1,36 @@
 /* Dashboard.css */
 :root {
-  --primary-color: #9945FF;
-  --secondary-color: #14F195;
-  --background-color: #121212;
-  --card-background: #1e1e1e;
-  --text-color: #f5f5f5;
-  --border-color: #333;
-  --success-color: #14F195;
-  --warning-color: #ff9900;
-  --danger-color: #ff4d4d;
-  --whale-color: rgba(67, 97, 238, 0.15);
-  --terminal-background: #0f0f0f;
-  --terminal-text: #14F195;
-  --button-hover: #2a2a2a;
+  /* New color scheme as requested */
+  --primary-bg: #000000;
+  --secondary-bg: #14213D;
+  --accent-color: #FCA311;
+  --light-text: #ffffff;
+  --dark-text: #333333;
+  --border-color: #555555;
+  --success-color: #4BB543;
+  --warning-color: #FFC107;
+  --danger-color: #DC3545;
+  --disabled-color: #6c757d;
+  
+  /* Retain other variables but update some */
+  --whale-color: rgba(252, 163, 17, 0.15);
+  --terminal-background: #14213D;
+  --terminal-text: #FCA311;
+  --button-hover: #14213D;
+  --button-active: #FCA311;
 }
 
 .dashboard {
   min-height: 100vh;
-  background-color: #0a0b0d;
-  color: #ffffff;
+  background-color: var(--primary-bg);
+  color: var(--light-text);
   padding: 20px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
 }
 
 .dashboard-header {
-  background: linear-gradient(180deg, rgba(30, 33, 39, 0.8) 0%, rgba(16, 17, 20, 0.8) 100%);
+  background: var(--secondary-bg);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
@@ -41,18 +46,16 @@
   font-size: 28px;
   font-weight: 600;
   margin-bottom: 8px;
-  background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--accent-color);
 }
 
 .token-info p {
-  color: #a0a0a0;
+  color: var(--light-text);
   font-size: 14px;
 }
 
 .trading-status {
-  background: rgba(25, 27, 31, 0.8);
+  background: var(--secondary-bg);
   border-radius: 8px;
   padding: 16px;
   margin-top: 16px;
@@ -68,10 +71,11 @@
 
 .progress {
   height: 100%;
-  background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+  background: var(--accent-color);
   transition: width 0.3s ease;
 }
 
+/* Tabs */
 .dashboard-tabs {
   display: flex;
   gap: 8px;
@@ -81,9 +85,9 @@
 }
 
 .dashboard-tabs button {
-  background: transparent;
-  border: none;
-  color: #a0a0a0;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--light-text);
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 500;
@@ -94,22 +98,23 @@
 }
 
 .dashboard-tabs button:hover {
-  background: rgba(79, 172, 254, 0.1);
-  color: #4facfe;
+  background: var(--secondary-bg);
+  color: var(--accent-color);
 }
 
 .dashboard-tabs button.active {
-  background: linear-gradient(90deg, rgba(79, 172, 254, 0.2) 0%, rgba(0, 242, 254, 0.2) 100%);
-  color: #ffffff;
-  border: 1px solid rgba(79, 172, 254, 0.3);
+  background: var(--secondary-bg);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  font-weight: bold;
 }
 
 .trading-view-container {
-  background: rgba(25, 27, 31, 0.8);
+  background: var(--secondary-bg);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
   height: 600px;
 }
 
@@ -121,10 +126,10 @@
 }
 
 .stat-card {
-  background: rgba(25, 27, 31, 0.8);
+  background: var(--secondary-bg);
   border-radius: 12px;
   padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
   transition: transform 0.3s ease;
 }
 
@@ -133,7 +138,7 @@
 }
 
 .stat-card h3 {
-  color: #a0a0a0;
+  color: var(--light-text);
   font-size: 14px;
   margin-bottom: 8px;
 }
@@ -141,84 +146,233 @@
 .stat-value {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--accent-color);
 }
 
-.accounts-table-container {
-  background: rgba(25, 27, 31, 0.8);
+/* Admin Panel Styles */
+.admin-tab {
+  background-color: var(--primary-bg);
   border-radius: 12px;
-  padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  overflow-x: auto;
+  padding: 20px;
+  margin-top: 20px;
 }
 
-.accounts-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+.admin-tab h3 {
+  color: var(--accent-color);
+  font-size: 24px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--accent-color);
+  padding-bottom: 10px;
 }
 
-.accounts-table th {
-  background: rgba(16, 17, 20, 0.8);
-  padding: 16px;
-  text-align: left;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #a0a0a0;
+.admin-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
 }
 
-.accounts-table td {
-  padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.accounts-table tr:hover td {
-  background: rgba(79, 172, 254, 0.05);
-}
-
-.whale-account td {
-  background: rgba(79, 172, 254, 0.1);
-}
-
-.secret-key-container {
+.admin-controls {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.secret-key-container input {
-  background: rgba(16, 17, 20, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  padding: 8px;
-  color: #ffffff;
-  font-family: monospace;
-  width: 120px;
+.control-section {
+  background-color: var(--secondary-bg);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
 }
 
-.secret-key-container button {
-  background: rgba(79, 172, 254, 0.2);
-  border: 1px solid rgba(79, 172, 254, 0.3);
-  border-radius: 4px;
-  padding: 8px 16px;
-  color: #4facfe;
+.control-section h4 {
+  color: var(--accent-color);
+  font-size: 18px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--accent-color);
+  padding-bottom: 8px;
+}
+
+.button-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.admin-button {
+  background-color: var(--primary-bg);
+  color: var(--light-text);
+  border: 1px solid var(--accent-color);
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
-.secret-key-container button:hover {
-  background: rgba(79, 172, 254, 0.3);
+.admin-button:hover {
+  background-color: var(--accent-color);
+  color: var(--primary-bg);
 }
 
-.profit {
-  color: #00f2fe;
+.admin-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: var(--disabled-color);
 }
 
-.loss {
-  color: #fe4f97;
+/* Task Status Checkboxes */
+.task-status {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 16px;
 }
+
+.task-pending {
+  color: var(--warning-color);
+}
+
+.task-success {
+  color: var(--success-color);
+}
+
+.task-failure {
+  color: var(--danger-color);
+}
+
+.task-loading {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+/* Terminal Styling */
+.admin-terminal {
+  background-color: var(--terminal-background);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.terminal-header h4 {
+  color: var(--accent-color);
+  font-size: 16px;
+  margin: 0;
+}
+
+.clear-button {
+  background-color: transparent;
+  color: var(--light-text);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-button:hover {
+  background-color: var(--accent-color);
+  color: var(--primary-bg);
+}
+
+.terminal-output {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: var(--light-text);
+  white-space: pre-wrap;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  max-height: 500px;
+}
+
+.terminal-output .command-line {
+  color: var(--accent-color);
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.terminal-output .success-line {
+  color: var(--success-color);
+}
+
+.terminal-output .error-line {
+  color: var(--danger-color);
+}
+
+.terminal-output .warning-line {
+  color: var(--warning-color);
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background-color: var(--accent-color);
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* Keep existing media queries and add adjustments for new styles */
+@media (max-width: 768px) {
+  .admin-panel {
+    grid-template-columns: 1fr;
+  }
+  
+  .button-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .dashboard-tabs button.active {
+    border: 2px solid currentColor;
+  }
+  
+  .admin-button {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Rest of existing styles... */
 
 /* Toast Notification */
 .toast-notification {
@@ -323,4 +477,156 @@
   .accounts-table-container {
     border: 1px solid CanvasText;
   }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.7; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Overview Tab */
+.overview-tab {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.chart-container {
+  background-color: var(--secondary-bg);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.chart-container h3 {
+  color: var(--accent-color);
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.chart-container canvas {
+  width: 100% !important;
+  height: 250px !important;
+}
+
+.table-container {
+  background-color: var(--secondary-bg);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  grid-column: 1 / -1;
+  overflow-x: auto;
+}
+
+.table-container h3 {
+  color: var(--accent-color);
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  color: var(--accent-color);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+}
+
+table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+table tr:last-child td {
+  border-bottom: none;
+}
+
+table tr:hover {
+  background-color: rgba(20, 33, 61, 0.3);
+}
+
+/* Responsive Styles */
+@media screen and (max-width: 1200px) {
+  .admin-panel {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  .token-info {
+    flex-wrap: wrap;
+  }
+  
+  .dashboard-content {
+    padding: 1rem;
+  }
+  
+  .admin-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Animation for tab transitions */
+.tab-content-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.tab-content-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.tab-content-exit {
+  opacity: 1;
+}
+
+.tab-content-exit-active {
+  opacity: 0;
+  transition: opacity 300ms;
 } 

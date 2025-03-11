@@ -3,6 +3,8 @@ import { Connection } from '@solana/web3.js';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ArcElement } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { TradingService, TradingPatternType, TradingDataPoint, TokenTransaction, WalletSummary } from '../services/tradingService';
+import { Transaction, TradingStatus, WalletType } from '../types';
+import { Account as TypesAccount } from '../types';
 import './Dashboard.css';
 
 // Register ChartJS components
@@ -113,6 +115,21 @@ interface BalanceInfo {
   balances: BalanceItem[];
 }
 
+interface Account {
+  publicKey: string;
+  type: 'WHALE' | 'RETAIL';
+  balance: number;
+  status: string;
+}
+
+// Add a new interface for task status tracking
+interface TaskStatus {
+  id: string;
+  name: string;
+  status: 'pending' | 'loading' | 'success' | 'failure';
+  message?: string;
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   // State
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -139,13 +156,29 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   const adminOutputRef = useRef<HTMLDivElement>(null);
   const [accountDetails, setAccountDetails] = useState<AccountDetails[]>([]);
   const [accountsLoading, setAccountsLoading] = useState<boolean>(true);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [tradingStatus, setTradingStatus] = useState('idle');
+  const [accounts, setAccounts] = useState<TypesAccount[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [tradingStatus, setTradingStatus] = useState<TradingStatus>({
+    isRunning: false,
+    currentPattern: null,
+    remainingTime: null,
+    startTime: null,
+    totalDuration: null
+  });
   const [adminCommand, setAdminCommand] = useState('');
   const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Add new state for task statuses
+  const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([
+    { id: 'create-accounts', name: 'Create Accounts', status: 'pending' },
+    { id: 'test-accounts', name: 'Test Accounts', status: 'pending' },
+    { id: 'create-source-wallet', name: 'Create Source Wallet', status: 'pending' },
+    { id: 'distribute-sol', name: 'Distribute SOL', status: 'pending' },
+    { id: 'create-token', name: 'Create Token', status: 'pending' },
+    { id: 'run-trading', name: 'Run Trading', status: 'pending' }
+  ]);
   
   // Create trading service
   const tradingService = new TradingService(connection, tokenMint);
@@ -164,7 +197,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
         
         // Get trading status
         const status = await tradingService.getTradingStatus();
-        setCurrentPattern(status.currentPattern);
+        setCurrentPattern(status.currentPattern as TradingPatternType | null);
         setRemainingTime(status.remainingTime);
         setStartTime(status.startTime);
         setTotalDuration(status.totalDuration);
@@ -221,99 +254,112 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     }
   }, [adminOutput]);
   
-  // Fetch all data from trading service
+  // Initial data load
+  useEffect(() => {
+    console.log("Dashboard: Initial data load");
+    fetchAllData();
+    
+    // Set up auto-refresh interval (every 10 seconds)
+    const interval = window.setInterval(() => {
+      console.log("Dashboard: Auto-refreshing data");
+      fetchAllData();
+    }, 10000);
+    
+    setRefreshInterval(interval);
+    
+    // Clean up interval on component unmount
+    return () => {
+      if (refreshInterval) {
+        window.clearInterval(refreshInterval);
+      }
+    };
+  }, []);
+
+  // Fetch data from API
   const fetchAllData = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
+      console.log("Dashboard: Fetching all data...");
+      
       // Fetch accounts
       try {
-        const accountsResponse = await fetch('/api/accounts');
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          setAccounts(accountsData);
-        } else {
-          console.error('Error fetching accounts');
-        }
+        console.log("Dashboard: Fetching accounts...");
+        const accountsData = await tradingService.getAllAccounts();
+        console.log("Dashboard: Received", accountsData.length, "accounts");
+        setAccounts(accountsData);
       } catch (accountsError) {
-        console.error('Failed to fetch accounts:', accountsError);
+        console.error('Dashboard: Failed to fetch accounts:', accountsError);
+        setAccounts([]);
       }
       
       // Fetch token info
       try {
-        const tokenResponse = await fetch('/token-info.json');
-        if (tokenResponse.ok) {
-          const tokenData = await tokenResponse.json();
-          setTokenInfo(tokenData);
-        } else {
-          console.error('Error fetching token info');
-        }
+        console.log("Dashboard: Fetching token info...");
+        const info = await tradingService.getTokenInfo();
+        console.log("Dashboard: Received token info:", info.name);
+        setTokenInfo(info);
       } catch (tokenError) {
-        console.error('Failed to fetch token info:', tokenError);
+        console.error('Dashboard: Failed to fetch token info:', tokenError);
       }
       
       // Try to get balance info if available
       try {
-        const balanceResponse = await fetch('/balance-info.json');
-        if (balanceResponse.ok) {
-          const balanceData = await balanceResponse.json() as BalanceInfo;
-          if (balanceData && balanceData.balances && balanceData.balances.length > 0) {
-            // Update accounts with accurate balance data
-            const balanceMap: Record<string, { balance: number; type: string }> = {};
-            balanceData.balances.forEach((balanceItem: BalanceItem) => {
-              balanceMap[balanceItem.publicKey] = {
-                balance: balanceItem.balance,
-                type: balanceItem.type
-              };
-            });
+        console.log("Dashboard: Fetching balance info...");
+        const balanceData = await tradingService.getBalanceInfo();
+        
+        if (balanceData && balanceData.balances && balanceData.balances.length > 0) {
+          console.log("Dashboard: Received balance info for", balanceData.balances.length, "accounts");
+          
+          // Update accounts with accurate balance data
+          const balanceMap: Record<string, { balance: number; type: string }> = {};
+          balanceData.balances.forEach((balanceItem: BalanceItem) => {
+            balanceMap[balanceItem.publicKey] = {
+              balance: balanceItem.balance,
+              type: balanceItem.type
+            };
+          });
+          
+          // Update accounts with balance info
+          setAccounts(prevAccounts => {
+            // Only update if we have accounts
+            if (prevAccounts.length === 0) return prevAccounts;
             
-            // Update accounts with balance info
-            setAccounts(prevAccounts => 
-              prevAccounts.map(account => ({
-                ...account,
-                balance: balanceMap[account.publicKey]?.balance || account.balance,
-                type: balanceMap[account.publicKey]?.type || account.type
-              }))
-            );
-            
-            console.log('Updated accounts with balance info from balance-info.json');
-          }
+            return prevAccounts.map(account => ({
+              ...account,
+              balance: balanceMap[account.publicKey]?.balance || account.balance,
+              type: (balanceMap[account.publicKey]?.type || account.type) as WalletType
+            }));
+          });
+          
+          console.log('Dashboard: Updated accounts with balance info');
         }
       } catch (balanceError) {
-        console.error('Failed to fetch balance info, using API accounts data only:', balanceError);
+        console.log('Dashboard: Failed to fetch balance info, using API accounts data only');
       }
       
       // Fetch transactions
       try {
-        const txResponse = await fetch('/api/transactions');
-        if (txResponse.ok) {
-          const txData = await txResponse.json();
-          setTransactions(txData);
-        } else {
-          console.error('Error fetching transactions');
-        }
+        const txData = await tradingService.getTransactions(10);
+        setTransactions(txData);
       } catch (txError) {
         console.error('Failed to fetch transactions:', txError);
       }
       
       // Fetch trading status
       try {
-        const statusResponse = await fetch('/api/trading-status');
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
-          setTradingStatus(statusData.status);
-        } else {
-          console.error('Error fetching trading status');
-        }
+        const statusData = await tradingService.getTradingStatus();
+        setTradingStatus(statusData);
       } catch (statusError) {
         console.error('Failed to fetch trading status:', statusError);
       }
       
       setLastRefreshed(new Date());
       setIsLoading(false);
+      console.log("Dashboard: Finished fetching all data");
     } catch (error) {
-      console.error('Data refresh failed:', error);
+      console.error('Dashboard: Data refresh failed:', error);
       setError('Failed to refresh data. Please try again.');
       setIsLoading(false);
     }
@@ -368,7 +414,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       
       // Refresh data
       const status = await tradingService.getTradingStatus();
-      setCurrentPattern(status.currentPattern);
+      setCurrentPattern(status.currentPattern as TradingPatternType | null);
       setRemainingTime(status.remainingTime);
       setStartTime(status.startTime);
       setTotalDuration(status.totalDuration);
@@ -387,7 +433,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       
       // Refresh data
       const status = await tradingService.getTradingStatus();
-      setCurrentPattern(status.currentPattern);
+      setCurrentPattern(status.currentPattern as TradingPatternType | null);
       setRemainingTime(status.remainingTime);
       setStartTime(status.startTime);
       setTotalDuration(status.totalDuration);
@@ -396,12 +442,45 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     }
   };
 
-  // Execute admin command
+  // Helper function to update task status
+  const updateTaskStatus = (taskId: string, status: 'pending' | 'loading' | 'success' | 'failure', message?: string) => {
+    setTaskStatuses(prev => 
+      prev.map(task => 
+        task.id === taskId 
+          ? { ...task, status, message } 
+          : task
+      )
+    );
+  };
+
+  // Function to render task status icon
+  const renderTaskStatusIcon = (status: 'pending' | 'loading' | 'success' | 'failure') => {
+    switch (status) {
+      case 'pending':
+        return <span className="task-status task-pending">⚪</span>;
+      case 'loading':
+        return <span className="task-status task-loading">⏳</span>;
+      case 'success':
+        return <span className="task-status task-success">✅</span>;
+      case 'failure':
+        return <span className="task-status task-failure">❌</span>;
+      default:
+        return null;
+    }
+  };
+
+  // Modified executeCommand to use task status indicators
   const executeCommand = async (command: string) => {
     if (isCommandRunning) return;
     
     setAdminOutput(prev => [...prev, `> ${command}`]);
     setIsCommandRunning(true);
+    
+    // Get base command (without arguments)
+    const baseCommand = command.split(' ')[0];
+    
+    // Update task status to loading
+    updateTaskStatus(baseCommand, 'loading');
     
     try {
       // Execute actual command by calling the API
@@ -446,6 +525,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       } else {
         setAdminOutput(prev => [...prev, `Unknown command: ${command}`]);
         setIsCommandRunning(false);
+        updateTaskStatus(baseCommand, 'failure', 'Unknown command');
         return;
       }
       
@@ -481,6 +561,9 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
             setAdminOutput(prev => [...prev, result.message || 'Command completed successfully']);
           }
           
+          // Mark task as success
+          updateTaskStatus(baseCommand, 'success');
+          
           // Display success message
           setAdminOutput(prev => [...prev, `✅ ${command} command processed successfully!`]);
           
@@ -489,13 +572,27 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
             setAdminOutput(prev => [...prev, `Waiting for token creation to complete...`]);
             
             // Start polling for token info
+            let tokenInfoFound = false;
             const checkTokenInterval = setInterval(async () => {
               try {
                 const response = await fetch('/token-info.json');
                 if (response.ok) {
                   clearInterval(checkTokenInterval);
-                  setAdminOutput(prev => [...prev, `✅ Token created and distributed successfully!`]);
-                  await fetchAllData();
+                  const tokenInfoData = await response.json();
+                  // Fixed: Ensure tokenInfo is properly defined before using it
+                  if (tokenInfoData && tokenInfoData.mint) {
+                    setTokenInfo({
+                      name: tokenInfoData.name || 'Unknown',
+                      symbol: tokenInfoData.symbol || 'UNK',
+                      decimals: tokenInfoData.decimals || 9,
+                      totalSupply: tokenInfoData.totalSupply || 0,
+                      mint: tokenInfoData.mint
+                    });
+                    tokenInfoFound = true;
+                    setAdminOutput(prev => [...prev, `✅ Token created and distributed successfully!`]);
+                    updateTaskStatus('create-token', 'success', 'Token created successfully');
+                    await fetchAllData();
+                  }
                 }
               } catch (error) {
                 // Continue polling
@@ -505,6 +602,10 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
             // Stop polling after 5 minutes
             setTimeout(() => {
               clearInterval(checkTokenInterval);
+              if (!tokenInfoFound) {
+                setAdminOutput(prev => [...prev, `⚠️ Token creation taking longer than expected. Check backend logs for details.`]);
+                updateTaskStatus('create-token', 'failure', 'Timeout waiting for token');
+              }
             }, 5 * 60 * 1000);
           }
           
@@ -517,21 +618,19 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
             setAdminOutput(prev => [...prev, `Data refreshed successfully!`]);
           }
         } else {
+          updateTaskStatus(baseCommand, 'failure', result.message || 'Unknown error');
           setAdminOutput(prev => [...prev, `❌ Error: ${result.message || 'Unknown error'}`]);
         }
-      } catch (fetchError) {
-        console.error('Error fetching from API:', fetchError);
-        setAdminOutput(prev => [...prev, `❌ Error communicating with server: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`]);
+      } catch (error) {
+        console.error('API call error:', error);
+        updateTaskStatus(baseCommand, 'failure', error instanceof Error ? error.message : 'Unknown error');
+        setAdminOutput(prev => [...prev, `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
       }
-      
-      // Command has completed
-      setIsCommandRunning(false);
     } catch (error) {
-      console.error('Error executing command:', error);
-      setAdminOutput(prev => [
-        ...prev, 
-        `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      ]);
+      console.error('Command execution error:', error);
+      updateTaskStatus(baseCommand, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      setAdminOutput(prev => [...prev, `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+    } finally {
       setIsCommandRunning(false);
     }
   };
@@ -593,30 +692,11 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   const handleRefresh = () => {
     fetchAllData();
   };
-  
-  // Initial data load
-  useEffect(() => {
-    fetchAllData();
-    
-    // Set up auto-refresh interval (every 10 seconds)
-    const interval = window.setInterval(() => {
-      fetchAllData();
-    }, 10000);
-    
-    setRefreshInterval(interval);
-    
-    // Clean up interval on component unmount
-    return () => {
-      if (refreshInterval) {
-        window.clearInterval(refreshInterval);
-      }
-    };
-  }, []);
 
   // Add this function to render the accounts tab content
   const renderAccountsTab = () => {
-    const whaleCount = accounts.filter(a => a.type === 'whale').length;
-    const retailCount = accounts.filter(a => a.type === 'retail').length;
+    const whaleCount = accounts.filter(a => a.type === 'WHALE').length;
+    const retailCount = accounts.filter(a => a.type === 'RETAIL').length;
     
     // Calculate total token distribution
     const totalTokens = accounts.reduce((sum, account) => sum + (account.balance || 0), 0);
@@ -698,7 +778,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                         <tr key={index} className={account.type}>
                           <td>
                             <span className={`account-type ${account.type}`}>
-                              {account.type === 'whale' ? '🐋 Whale' : '👤 Retail'}
+                              {account.type === 'WHALE' ? '🐋 Whale' : '👤 Retail'}
                             </span>
                           </td>
                           <td className="address" title={account.publicKey}>
@@ -771,7 +851,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       </div>
     );
   };
-
+  
   if (isLoading) {
     return <div className="loading">Loading dashboard...</div>;
   }
@@ -1016,6 +1096,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                       disabled={isCommandRunning}
                     >
                       Create Accounts
+                      {renderTaskStatusIcon(taskStatuses.find(t => t.id === 'create-accounts')?.status || 'pending')}
                     </button>
                     <button 
                       className="admin-button" 
@@ -1023,6 +1104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                       disabled={isCommandRunning}
                     >
                       Test Accounts
+                      {renderTaskStatusIcon(taskStatuses.find(t => t.id === 'test-accounts')?.status || 'pending')}
                     </button>
                     <button 
                       className="admin-button" 
@@ -1030,6 +1112,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                       disabled={isCommandRunning}
                     >
                       Create Source Wallet
+                      {renderTaskStatusIcon(taskStatuses.find(t => t.id === 'create-source-wallet')?.status || 'pending')}
                     </button>
                   </div>
                 </div>
@@ -1043,6 +1126,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                       disabled={isCommandRunning}
                     >
                       Distribute SOL
+                      {renderTaskStatusIcon(taskStatuses.find(t => t.id === 'distribute-sol')?.status || 'pending')}
                     </button>
                     <button 
                       className="admin-button" 
@@ -1050,6 +1134,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                       disabled={isCommandRunning}
                     >
                       Create Token
+                      {renderTaskStatusIcon(taskStatuses.find(t => t.id === 'create-token')?.status || 'pending')}
                     </button>
                   </div>
                 </div>
@@ -1063,6 +1148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                       disabled={isCommandRunning}
                     >
                       Run Trading
+                      {renderTaskStatusIcon(taskStatuses.find(t => t.id === 'run-trading')?.status || 'pending')}
                     </button>
                     <button 
                       className="admin-button" 
@@ -1087,11 +1173,19 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                   </button>
                 </div>
                 <div className="terminal-output" ref={adminOutputRef}>
-                  {adminOutput.map((line, index) => (
-                    <div key={index} className={line.startsWith('>') ? 'command-line' : ''}>
-                      {line}
-                    </div>
-                  ))}
+                  {adminOutput.map((line, index) => {
+                    let className = '';
+                    if (line.startsWith('>')) className = 'command-line';
+                    else if (line.startsWith('✅')) className = 'success-line';
+                    else if (line.startsWith('❌')) className = 'error-line';
+                    else if (line.startsWith('⚠️')) className = 'warning-line';
+                    
+                    return (
+                      <div key={index} className={className}>
+                        {line}
+                      </div>
+                    );
+                  })}
                   {isCommandRunning && <div className="terminal-cursor">_</div>}
                 </div>
               </div>

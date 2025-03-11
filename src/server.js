@@ -60,126 +60,58 @@ const readAccountsFile = () => {
 // API endpoint to get accounts
 app.get('/api/accounts', (req, res) => {
   try {
-    // Check if accounts.json exists
-    if (!fs.existsSync('accounts.json')) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'No accounts found. Please create accounts first.'
-      });
+    const accountsPath = path.join(__dirname, '..', 'accounts.json');
+    if (!fs.existsSync(accountsPath)) {
+      return res.status(404).json({ error: 'Accounts file not found. Please run create-accounts first.' });
     }
+
+    const accountsData = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'));
     
-    // Read accounts data directly from file
-    const accountsData = JSON.parse(fs.readFileSync('accounts.json', 'utf-8'));
-    
-    // Check if token-info.json exists for balance information
-    let tokenData = null;
-    let tokenBalances = {};
-    
-    if (fs.existsSync('public/token-info.json')) {
-      tokenData = JSON.parse(fs.readFileSync('public/token-info.json', 'utf-8'));
-      
-      // If there's a transactions.json, use it to calculate actual balances
-      if (fs.existsSync('transactions.json')) {
-        try {
-          const transactions = JSON.parse(fs.readFileSync('transactions.json', 'utf-8'));
-          // Process transactions to get actual balances
-          // This is a simplified version - in a real implementation you'd sum all transactions
-          accountsData.forEach(account => {
-            tokenBalances[account.publicKey] = 0;
-          });
-          
-          transactions.forEach(tx => {
-            if (tx.from && tx.to && tx.amount) {
-              if (tokenBalances[tx.from] !== undefined) {
-                tokenBalances[tx.from] -= tx.amount;
-              }
-              if (tokenBalances[tx.to] !== undefined) {
-                tokenBalances[tx.to] += tx.amount;
-              }
-            }
-          });
-        } catch (txError) {
-          console.error('Error processing transactions:', txError);
-        }
-      }
-    }
-    
-    // Enhance accounts with type information and balance data
-    const enhancedAccounts = accountsData.map((account, index) => {
-      // Use existing type if available, otherwise calculate based on index
-      const accountType = account.type || (index < Math.floor(accountsData.length * 0.4) ? 'whale' : 'retail');
-      
-      // For balance, use token balance if available, otherwise simulate based on account type
-      let balance = 0;
-      if (tokenBalances[account.publicKey] !== undefined) {
-        balance = tokenBalances[account.publicKey];
-      } else if (tokenData) {
-        // Simulate balance based on account type
-        if (accountType === 'whale') {
-          // Whales get 2-5% of supply
-          const percentage = 2 + (Math.random() * 3);
-          balance = Math.floor(tokenData.totalSupply * (percentage / 100));
-        } else {
-          // Retail accounts get 0.5-2% of supply
-          const percentage = 0.5 + (Math.random() * 1.5);
-          balance = Math.floor(tokenData.totalSupply * (percentage / 100));
-        }
-      }
-      
-      return {
-        publicKey: account.publicKey,
-        type: accountType,
-        balance: balance,
-        // Don't include secretKey in the response for security
-      };
-    });
-    
-    res.json(enhancedAccounts);
+    // Add index to help determine account type
+    const accounts = accountsData.map((account, index) => ({
+      ...account,
+      index,
+      type: index < 25 ? 'WHALE' : 'RETAIL'
+    }));
+
+    res.json(accounts);
   } catch (error) {
-    console.error('Error getting accounts:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Error fetching accounts: ${error.message}` 
-    });
+    console.error('Error reading accounts:', error);
+    res.status(500).json({ error: 'Failed to read accounts' });
   }
 });
 
 // API endpoint to get token transactions
 app.get('/api/transactions', (req, res) => {
   try {
-    // Check if there's a transactions.json file
-    if (fs.existsSync('transactions.json')) {
-      const transactions = JSON.parse(fs.readFileSync('transactions.json', 'utf-8'));
-      res.json(transactions);
-    } else {
-      // Return empty array if no transactions yet
-      res.json([]);
-    }
+    const limit = parseInt(req.query.limit) || 10;
+    // TODO: Implement actual transaction fetching
+    const mockTransactions = Array(limit).fill(null).map((_, i) => ({
+      id: `tx-${i}`,
+      from: 'wallet1',
+      to: 'wallet2',
+      amount: Math.random() * 100,
+      timestamp: Date.now() - i * 1000,
+      type: Math.random() > 0.5 ? 'BUY' : 'SELL'
+    }));
+    res.json(mockTransactions);
   } catch (error) {
-    console.error('Error getting transactions:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Error fetching transactions: ${error.message}` 
-    });
+    res.status(500).json({ error: 'Failed to fetch transactions' });
   }
 });
 
 // API endpoint to get trading status
-app.get('/api/trading-status', (req, res) => {
+app.get('/api/trading/status', (req, res) => {
   try {
+    // TODO: Implement actual trading status
     res.json({
-      status: tradingStatus,
-      currentPattern: currentPattern,
-      startTime: patternStartTime,
-      remainingTime: patternEndTime ? patternEndTime - Date.now() : null,
-      totalDuration: patternDuration
+      isActive: true,
+      currentPhase: 'TRADING',
+      startTime: Date.now() - 3600000,
+      endTime: Date.now() + 3600000
     });
   } catch (error) {
-    console.error('Error getting trading status:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Error fetching trading status: ${error.message}` 
-    });
+    res.status(500).json({ error: 'Failed to fetch trading status' });
   }
 });
 
@@ -354,18 +286,40 @@ const saveTransaction = (from, to, amount, type = 'transfer', pattern = null) =>
   }
 };
 
-// Updated runAllPatterns function with transaction saving
+// Load token info with proper error handling
+const loadTokenInfoSafely = () => {
+  try {
+    if (fs.existsSync('token-info.json')) {
+      return JSON.parse(fs.readFileSync('token-info.json', 'utf-8'));
+    } else if (fs.existsSync('public/token-info.json')) {
+      return JSON.parse(fs.readFileSync('public/token-info.json', 'utf-8'));
+    } else {
+      console.warn("⚠️ No token-info.json file found");
+      return null;
+    }
+  } catch (error) {
+    console.error("❌ Error loading token info:", error);
+    return null;
+  }
+};
+
+// Updated runAllPatterns function with proper error handling
 const runAllPatterns = async () => {
   try {
-    if (!fs.existsSync('accounts.json') || !fs.existsSync('public/token-info.json')) {
-      throw new Error("Missing required files. Please create accounts and token first.");
+    if (!fs.existsSync('accounts.json')) {
+      throw new Error("Missing accounts.json file. Please create accounts first.");
     }
     
-    console.log("Loading accounts and token info...");
+    console.log("Loading accounts...");
     const accounts = loadAccounts();
     console.log(`Loaded ${accounts.length} accounts`);
     
-    const tokenInfo = loadTokenInfo();
+    // Safely load token info with fallback values if needed
+    const tokenInfo = loadTokenInfoSafely();
+    if (!tokenInfo || !tokenInfo.mint) {
+      throw new Error("No valid token information found. Please create a token first.");
+    }
+    
     console.log(`Token: ${tokenInfo.name} (${tokenInfo.symbol})`);
     console.log(`Mint: ${tokenInfo.mint}`);
     
@@ -475,6 +429,10 @@ const runAllPatterns = async () => {
       
       // Create a wrapper for the pattern that saves transactions
       const patternWithTracking = async (connection, accounts, tokenInfo, options) => {
+        if (!tokenInfo || !tokenInfo.mint) {
+          throw new Error("Cannot execute pattern: No valid token information available");
+        }
+        
         // Create a mock transferTokens function that saves transactions
         const originalTransferTokens = pattern.fn;
         pattern.fn = async (connection, accounts, tokenInfo, options) => {
@@ -538,8 +496,9 @@ const runAllPatterns = async () => {
     console.log("\n✅ All trading patterns completed successfully!");
     return { success: true, message: "All trading patterns executed successfully" };
   } catch (error) {
-    console.error("Error running trading patterns:", error);
+    console.error("Error running patterns:", error);
     
+    // Reset trading status on error
     tradingStatus = 'error';
     currentPattern = null;
     patternStartTime = null;

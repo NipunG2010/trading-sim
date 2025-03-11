@@ -327,6 +327,10 @@ export function saveTokenInfo(
     fs.writeFileSync('public/token-info.json', JSON.stringify(tokenInfo, null, 2));
     console.log("✅ Token info saved to public/token-info.json");
     
+    // Also save to root directory for easier access from Node.js scripts
+    fs.writeFileSync('token-info.json', JSON.stringify(tokenInfo, null, 2));
+    console.log("✅ Token info saved to token-info.json");
+    
     return tokenInfo;
   } catch (error) {
     console.error("❌ Error saving token info:", error);

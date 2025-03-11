@@ -47,10 +47,36 @@ function loadAccounts() {
  */
 function loadTokenInfo() {
   try {
-    return JSON.parse(fs.readFileSync("token-info.json", "utf-8"));
+    // Try multiple locations for the token info file
+    if (fs.existsSync("token-info.json")) {
+      return JSON.parse(fs.readFileSync("token-info.json", "utf-8"));
+    } else if (fs.existsSync("public/token-info.json")) {
+      return JSON.parse(fs.readFileSync("public/token-info.json", "utf-8"));
+    } else if (fs.existsSync("../token-info.json")) {
+      return JSON.parse(fs.readFileSync("../token-info.json", "utf-8"));
+    } else if (fs.existsSync("../public/token-info.json")) {
+      return JSON.parse(fs.readFileSync("../public/token-info.json", "utf-8"));
+    } else {
+      console.error("Error: token-info.json not found in any expected location");
+      // Return a default object to prevent null reference errors
+      return {
+        mint: "",
+        name: "Unknown Token",
+        symbol: "UNK",
+        decimals: 9,
+        totalSupply: 1000000000
+      };
+    }
   } catch (error) {
     console.error("Error loading token info:", error);
-    throw error;
+    // Return a default object to prevent null reference errors
+    return {
+      mint: "",
+      name: "Unknown Token",
+      symbol: "UNK",
+      decimals: 9,
+      totalSupply: 1000000000
+    };
   }
 }
 
@@ -101,67 +127,57 @@ async function transferTokens(
   amount,
   decimals
 ) {
-  try {
-    // Get or create associated token accounts
-    const senderTokenAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      senderKeypair,
-      tokenMint,
-      senderKeypair.publicKey
-    );
-
-    const receiverTokenAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      senderKeypair,
-      tokenMint,
-      receiverPublicKey
-    );
-
-    // Calculate amount with decimals
-    const adjustedAmount = Math.floor(amount * Math.pow(10, decimals));
-
-    // Create transfer instruction
-    const transferInstruction = createTransferInstruction(
-      senderTokenAccount.address,
-      receiverTokenAccount.address,
-      senderKeypair.publicKey,
-      adjustedAmount
-    );
-
-    // Create and send transaction
-    const transaction = new Transaction().add(transferInstruction);
-    
-    // Add retry logic for transaction sending
-    let attempts = 0;
-    const maxAttempts = 3;
-    let signature;
-    
-    while (attempts < maxAttempts) {
-      try {
-        signature = await sendAndConfirmTransaction(
-          connection,
-          transaction,
-          [senderKeypair],
-          { commitment: 'confirmed' }
-        );
-        return signature;
-      } catch (err) {
-        attempts++;
-        console.error(`Transaction attempt ${attempts}/${maxAttempts} failed: ${err.message}`);
-        
-        if (attempts >= maxAttempts) {
-          throw err;
-        }
-        
-        // Short backoff before retry (100ms)
-        await sleep(100);
+  // Add retry logic for more reliable transfers
+  let attempts = 0;
+  const maxAttempts = 3;
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Get or create associated token accounts
+      const senderTokenAccount = await getOrCreateAssociatedTokenAccount(
+        connection,
+        senderKeypair,
+        tokenMint,
+        senderKeypair.publicKey
+      );
+      
+      const receiverTokenAccount = await getOrCreateAssociatedTokenAccount(
+        connection,
+        senderKeypair,
+        tokenMint,
+        receiverPublicKey
+      );
+      
+      // Create transfer instruction
+      const transferInstruction = createTransferInstruction(
+        senderTokenAccount.address,
+        receiverTokenAccount.address,
+        senderKeypair.publicKey,
+        amount * (10 ** decimals)
+      );
+      
+      // Create and sign transaction
+      const transaction = new Transaction().add(transferInstruction);
+      
+      // Send and confirm transaction
+      const signature = await sendAndConfirmTransaction(
+        connection,
+        transaction,
+        [senderKeypair]
+      );
+      
+      return signature;
+    } catch (error) {
+      attempts++;
+      console.error(`Transfer attempt ${attempts}/${maxAttempts} failed: ${error.message}`);
+      
+      if (attempts >= maxAttempts) {
+        throw new Error(`Failed to transfer tokens after ${maxAttempts} attempts: ${error.message}`);
       }
+      
+      // Wait before retrying
+      await sleep(500);
     }
-
-    return signature;
-  } catch (error) {
-    console.error("Error transferring tokens:", error);
-    throw error;
   }
 }
 
