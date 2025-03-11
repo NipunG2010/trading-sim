@@ -56,11 +56,31 @@ function loadTokenInfo() {
 
 /**
  * Creates a keypair from a secret key
- * @param {Array} secretKey - Secret key as an array of numbers
+ * @param {Array|String} secretKey - Secret key as an array of numbers or base64 string
  * @returns {Keypair} Solana keypair
  */
 function createKeypairFromSecretKey(secretKey) {
-  return Keypair.fromSecretKey(Uint8Array.from(secretKey));
+  try {
+    // Handle different secret key formats
+    if (typeof secretKey === 'string') {
+      // Base64 string format
+      return Keypair.fromSecretKey(Buffer.from(secretKey, 'base64'));
+    } else if (Array.isArray(secretKey)) {
+      // Array format
+      return Keypair.fromSecretKey(Uint8Array.from(secretKey));
+    } else if (secretKey instanceof Uint8Array) {
+      // Already a Uint8Array
+      return Keypair.fromSecretKey(secretKey);
+    } else if (secretKey instanceof Buffer) {
+      // Already a Buffer
+      return Keypair.fromSecretKey(secretKey);
+    } else {
+      throw new Error(`Unsupported secret key format: ${typeof secretKey}`);
+    }
+  } catch (error) {
+    console.error(`Error creating keypair: ${error.message}`);
+    throw error;
+  }
 }
 
 /**
@@ -111,11 +131,32 @@ async function transferTokens(
     // Create and send transaction
     const transaction = new Transaction().add(transferInstruction);
     
-    const signature = await sendAndConfirmTransaction(
-      connection,
-      transaction,
-      [senderKeypair]
-    );
+    // Add retry logic for transaction sending
+    let attempts = 0;
+    const maxAttempts = 3;
+    let signature;
+    
+    while (attempts < maxAttempts) {
+      try {
+        signature = await sendAndConfirmTransaction(
+          connection,
+          transaction,
+          [senderKeypair],
+          { commitment: 'confirmed' }
+        );
+        return signature;
+      } catch (err) {
+        attempts++;
+        console.error(`Transaction attempt ${attempts}/${maxAttempts} failed: ${err.message}`);
+        
+        if (attempts >= maxAttempts) {
+          throw err;
+        }
+        
+        // Short backoff before retry (100ms)
+        await sleep(100);
+      }
+    }
 
     return signature;
   } catch (error) {

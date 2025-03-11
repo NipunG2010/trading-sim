@@ -2,7 +2,9 @@
 import { 
   Connection, 
   Keypair, 
-  PublicKey
+  PublicKey,
+  sendAndConfirmTransaction,
+  Transaction
 } from "@solana/web3.js";
 import { 
   createMint, 
@@ -14,10 +16,13 @@ import {
 } from "@solana/spl-token";
 import * as fs from "fs";
 
-// Generate a random token name and symbol
+/**
+ * Generate a random token name and symbol
+ * Creates professional sounding token names with market-friendly symbols
+ */
 function generateTokenMetadata() {
-  const prefixes = ["Lunar", "Cosmic", "Quantum", "Nexus", "Stellar", "Astro", "Crypto", "Digi", "Meta", "Hyper"];
-  const suffixes = ["Protocol", "Network", "Finance", "Chain", "Swap", "Verse", "Yield", "Capital", "Coin", "Token"];
+  const prefixes = ["Lunar", "Cosmic", "Quantum", "Nexus", "Stellar", "Astro", "Crypto", "Digi", "Meta", "Hyper", "Orbit", "Solar", "Nova", "Pixel", "Ultra"];
+  const suffixes = ["Protocol", "Network", "Finance", "Chain", "Swap", "Verse", "Yield", "Capital", "Coin", "Token", "DAO", "DeFi", "Exchange", "Markets", "Labs"];
   
   const name = `${prefixes[Math.floor(Math.random() * prefixes.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]}`;
   
@@ -32,249 +37,465 @@ function generateTokenMetadata() {
   return { name, symbol };
 }
 
-// Create a new SPL token
+/**
+ * Create a new SPL token
+ * Handles error retries and provides detailed progress logs
+ */
 export async function createToken(
   connection,
   payer,
   mintAuthority = payer.publicKey,
   freezeAuthority = null
 ) {
-  console.log("Creating new SPL token...");
-  
-  // Generate random decimals between 6-9
-  const decimals = Math.floor(Math.random() * 4) + 6;
-  console.log(`Using ${decimals} decimals for token`);
-  
-  // Generate token metadata
-  const { name, symbol } = generateTokenMetadata();
-  console.log(`Token Name: ${name}`);
-  console.log(`Token Symbol: ${symbol}`);
-  
-  // Create mint account
-  const mintAccount = Keypair.generate();
-  console.log(`Mint Account: ${mintAccount.publicKey.toString()}`);
-  
-  // Create the token
-  await createMint(
-    connection,
-    payer,
-    mintAuthority,
-    freezeAuthority,
-    decimals,
-    mintAccount,
-    undefined,
-    TOKEN_PROGRAM_ID
-  );
-  
-  console.log(`Token created successfully: ${mintAccount.publicKey.toString()}`);
-  
-  // Calculate total supply (1 billion tokens)
-  const totalSupply = 1_000_000_000;
-  
-  // Return the mint account and token configuration
-  return { 
-    mint: mintAccount, 
-    config: {
+  try {
+    console.log("Creating new SPL token...");
+    
+    // Generate random decimals between 6-9
+    const decimals = Math.floor(Math.random() * 4) + 6;
+    console.log(`Using ${decimals} decimals for token`);
+    
+    // Generate token metadata
+    const { name, symbol } = generateTokenMetadata();
+    console.log(`Token Name: ${name}`);
+    console.log(`Token Symbol: ${symbol}`);
+    
+    // Check payer balance to ensure they have enough SOL
+    const balance = await connection.getBalance(payer.publicKey);
+    console.log(`Payer balance: ${balance / 1000000000} SOL`);
+    
+    if (balance < 10000000) { // 0.01 SOL
+      throw new Error("Payer account has insufficient SOL balance. Minimum 0.01 SOL required.");
+    }
+    
+    // Create the token
+    console.log("Creating token mint on Solana...");
+    let mint;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      try {
+        mint = await createMint(
+          connection,
+          payer,
+          mintAuthority,
+          freezeAuthority,
+          decimals
+        );
+        console.log(`Token mint created: ${mint.toString()}`);
+        break;
+      } catch (err) {
+        attempts++;
+        console.log(`Attempt ${attempts}/${maxAttempts} failed: ${err.message}`);
+        if (attempts >= maxAttempts) throw err;
+        
+        // Short backoff before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    return {
+      mint,
+      payer,
+      mintAuthority,
       name,
       symbol,
-      decimals,
-      totalSupply
-    }
-  };
+      decimals
+    };
+  } catch (error) {
+    console.error("❌ Error creating token:", error);
+    throw error;
+  }
 }
 
-// Distribute tokens to wallets
+/**
+ * Distribute tokens to wallets
+ * Implements batching and rate limiting to avoid Solana rate limit errors
+ */
 export async function distributeTokens(
   connection,
   mint,
   mintAuthority,
   wallets
 ) {
-  console.log(`Starting token distribution to ${wallets.length} wallets...`);
-  
-  // Load token info
-  const tokenInfo = await getMint(connection, mint);
-  const decimals = tokenInfo.decimals;
-  
-  // Calculate total supply with decimals
-  const totalSupply = 1_000_000_000 * Math.pow(10, decimals);
-  
-  // Separate wallets by type
-  const whaleWallets = wallets.filter(w => w.type === 'whale');
-  const retailWallets = wallets.filter(w => w.type === 'retail');
-  
-  console.log(`Distribution: ${whaleWallets.length} whale wallets, ${retailWallets.length} retail wallets`);
-  
-  // Calculate distribution percentages
-  // Whales get 60% ±3% of supply
-  const whalePercentage = 0.6 + (Math.random() * 0.06 - 0.03);
-  const retailPercentage = 1 - whalePercentage;
-  
-  console.log(`Whale allocation: ${(whalePercentage * 100).toFixed(2)}%`);
-  console.log(`Retail allocation: ${(retailPercentage * 100).toFixed(2)}%`);
-  
-  // Calculate amounts for each wallet type
-  const whaleSupply = Math.floor(totalSupply * whalePercentage);
-  const retailSupply = totalSupply - whaleSupply;
-  
-  // Distribution tracking
-  let distributedToWhales = 0;
-  let distributedToRetail = 0;
-  
-  // Create token account for mint authority first
-  const mintAuthorityTokenAccount = await getOrCreateAssociatedTokenAccount(
-    connection,
-    mintAuthority,
-    mint,
-    mintAuthority.publicKey
-  );
-  
-  // Mint all tokens to mint authority first
-  await mintTo(
-    connection,
-    mintAuthority,
-    mint,
-    mintAuthorityTokenAccount.address,
-    mintAuthority,
-    totalSupply
-  );
-  
-  console.log(`Minted ${totalSupply / Math.pow(10, decimals)} tokens to mint authority`);
-  
-  // Distribute to whale wallets (2-5% each)
-  for (const wallet of whaleWallets) {
-    // Skip if we've distributed all whale supply
-    if (distributedToWhales >= whaleSupply) break;
+  try {
+    console.log(`Starting token distribution to ${wallets.length} wallets...`);
     
-    // Random percentage between 2-5% of total supply
-    const percentage = 0.02 + Math.random() * 0.03;
-    let amount = Math.floor(totalSupply * percentage);
+    // Total supply: 1 billion tokens
+    const totalSupply = 1_000_000_000;
+    console.log(`Total supply: ${totalSupply.toLocaleString()} tokens`);
     
-    // Ensure we don't exceed whale supply
-    if (distributedToWhales + amount > whaleSupply) {
-      amount = whaleSupply - distributedToWhales;
-    }
-    
-    // Create token account for recipient
-    const recipientKeypair = Keypair.fromSecretKey(Buffer.from(wallet.secretKey, 'base64'));
-    const recipientTokenAccount = await getOrCreateAssociatedTokenAccount(
+    // Create source token account
+    console.log("Creating source token account...");
+    const sourceTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       mintAuthority,
       mint,
-      new PublicKey(wallet.publicKey)
+      mintAuthority.publicKey
     );
     
-    // Transfer tokens
-    await transfer(
-      connection,
-      mintAuthority,
-      mintAuthorityTokenAccount.address,
-      recipientTokenAccount.address,
-      mintAuthority,
-      amount
-    );
+    console.log(`Source token account: ${sourceTokenAccount.address.toString()}`);
     
-    distributedToWhales += amount;
-    console.log(`Transferred ${amount / Math.pow(10, decimals)} tokens to whale wallet ${wallet.publicKey}`);
-    
-    // Random delay between transfers (1-10 seconds)
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 9000));
-  }
-  
-  // Distribute to retail wallets (0.5-2% each)
-  for (const wallet of retailWallets) {
-    // Skip if we've distributed all retail supply
-    if (distributedToRetail >= retailSupply) break;
-    
-    // Random percentage between 0.5-2% of total supply
-    const percentage = 0.005 + Math.random() * 0.015;
-    let amount = Math.floor(totalSupply * percentage);
-    
-    // Ensure we don't exceed retail supply
-    if (distributedToRetail + amount > retailSupply) {
-      amount = retailSupply - distributedToRetail;
-    }
-    
-    // Create token account for recipient
-    const recipientKeypair = Keypair.fromSecretKey(Buffer.from(wallet.secretKey, 'base64'));
-    const recipientTokenAccount = await getOrCreateAssociatedTokenAccount(
+    // Mint all tokens to source account
+    console.log("Minting tokens to source account...");
+    await mintTo(
       connection,
       mintAuthority,
       mint,
-      new PublicKey(wallet.publicKey)
+      sourceTokenAccount.address,
+      mintAuthority.publicKey,
+      totalSupply * (10 ** (await getMint(connection, mint)).decimals)
     );
     
-    // Transfer tokens
-    await transfer(
-      connection,
-      mintAuthority,
-      mintAuthorityTokenAccount.address,
-      recipientTokenAccount.address,
-      mintAuthority,
-      amount
-    );
+    console.log("✅ Total supply minted to source account");
     
-    distributedToRetail += amount;
-    console.log(`Transferred ${amount / Math.pow(10, decimals)} tokens to retail wallet ${wallet.publicKey}`);
+    // Separate wallets into whale and retail accounts
+    const whaleCount = Math.floor(wallets.length * 0.4); // 40% whales
+    const retailCount = wallets.length - whaleCount;
     
-    // Random delay between transfers (1-10 seconds)
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 9000));
+    console.log(`Distributing to ${whaleCount} whale wallets and ${retailCount} retail wallets`);
+    
+    // Whale distribution (60% of supply)
+    const whaleSupply = totalSupply * 0.6;
+    console.log(`Total whale allocation: ${whaleSupply.toLocaleString()} tokens (60% of supply)`);
+    
+    // Retail distribution (40% of supply)
+    const retailSupply = totalSupply * 0.4;
+    console.log(`Total retail allocation: ${retailSupply.toLocaleString()} tokens (40% of supply)`);
+    
+    let successfulTransfers = 0;
+    let transferredTokens = 0;
+    
+    // Process in larger batches to improve performance
+    const BATCH_SIZE = 10;
+    
+    // Pre-calculate token decimals to avoid repeated calls
+    const tokenDecimals = (await getMint(connection, mint)).decimals;
+    const decimalMultiplier = 10 ** tokenDecimals;
+    
+    // Create a function to handle token transfers with retries
+    async function transferWithRetry(destinationWallet, amount, walletType, walletIndex, maxRetries = 3) {
+      let retries = 0;
+      
+      while (retries < maxRetries) {
+        try {
+          const walletTokenAccount = await getOrCreateAssociatedTokenAccount(
+            connection,
+            mintAuthority,
+            mint,
+            destinationWallet.publicKey
+          );
+          
+          await transfer(
+            connection,
+            mintAuthority,
+            sourceTokenAccount.address,
+            walletTokenAccount.address,
+            mintAuthority.publicKey,
+            amount * decimalMultiplier
+          );
+          
+          return { success: true };
+        } catch (error) {
+          retries++;
+          console.error(`Transfer attempt ${retries}/${maxRetries} failed for ${walletType} wallet ${walletIndex}: ${error.message}`);
+          
+          if (retries >= maxRetries) {
+            return { success: false, error: error.message };
+          }
+          
+          // Short backoff before retry (50ms)
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+    }
+    
+    // Distribute to whale accounts first (in parallel batches)
+    console.log("Distributing to whale accounts...");
+    
+    for (let i = 0; i < whaleCount; i += BATCH_SIZE) {
+      const batchWallets = wallets.slice(i, Math.min(i + BATCH_SIZE, whaleCount));
+      const batchPromises = batchWallets.map(async (wallet, index) => {
+        try {
+          // Whale accounts get 2-5% of total supply each
+          const percentage = 2 + (Math.random() * 3);
+          const amount = Math.floor(totalSupply * (percentage / 100));
+          
+          const transferResult = await transferWithRetry(
+            wallet, 
+            amount, 
+            'whale', 
+            i + index + 1
+          );
+          
+          if (transferResult.success) {
+            transferredTokens += amount;
+            successfulTransfers++;
+            console.log(`Transferred ${amount.toLocaleString()} tokens (${percentage.toFixed(2)}%) to whale wallet ${i + index + 1}/${whaleCount}`);
+            return { success: true, wallet: wallet.publicKey.toString(), amount, type: 'whale' };
+          } else {
+            console.error(`❌ Failed to transfer to whale wallet ${i + index + 1} after retries: ${transferResult.error}`);
+            return { success: false, wallet: wallet.publicKey.toString(), error: transferResult.error, type: 'whale' };
+          }
+        } catch (error) {
+          console.error(`❌ Error transferring to whale wallet ${i + index + 1}:`, error.message);
+          return { success: false, wallet: wallet.publicKey.toString(), error: error.message, type: 'whale' };
+        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      // Minimal delay between batches (100ms)
+      if (i + BATCH_SIZE < whaleCount) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // Distribute to retail accounts (in parallel batches)
+    console.log("Distributing to retail accounts...");
+    
+    for (let i = whaleCount; i < wallets.length; i += BATCH_SIZE) {
+      const batchWallets = wallets.slice(i, Math.min(i + BATCH_SIZE, wallets.length));
+      const batchPromises = batchWallets.map(async (wallet, index) => {
+        try {
+          // Retail accounts get 0.5-2% of total supply each
+          const percentage = 0.5 + (Math.random() * 1.5);
+          const amount = Math.floor(totalSupply * (percentage / 100));
+          
+          const transferResult = await transferWithRetry(
+            wallet, 
+            amount, 
+            'retail', 
+            i - whaleCount + index + 1
+          );
+          
+          if (transferResult.success) {
+            transferredTokens += amount;
+            successfulTransfers++;
+            console.log(`Transferred ${amount.toLocaleString()} tokens (${percentage.toFixed(2)}%) to retail wallet ${i - whaleCount + index + 1}/${retailCount}`);
+            return { success: true, wallet: wallet.publicKey.toString(), amount, type: 'retail' };
+          } else {
+            console.error(`❌ Failed to transfer to retail wallet ${i - whaleCount + index + 1} after retries: ${transferResult.error}`);
+            return { success: false, wallet: wallet.publicKey.toString(), error: transferResult.error, type: 'retail' };
+          }
+        } catch (error) {
+          console.error(`❌ Error transferring to retail wallet ${i - whaleCount + index + 1}:`, error.message);
+          return { success: false, wallet: wallet.publicKey.toString(), error: error.message, type: 'retail' };
+        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      // Minimal delay between batches (100ms)
+      if (i + BATCH_SIZE < wallets.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    console.log(`✅ Token distribution complete: ${successfulTransfers}/${wallets.length} successful transfers`);
+    console.log(`Total tokens distributed: ${transferredTokens.toLocaleString()} (${(transferredTokens / totalSupply * 100).toFixed(2)}% of supply)`);
+    
+    return {
+      mint: mint.toString(),
+      transfers: successfulTransfers,
+      totalDistributed: transferredTokens
+    };
+  } catch (error) {
+    console.error("❌ Error distributing tokens:", error);
+    throw error;
   }
-  
-  console.log(`Token distribution complete!`);
-  console.log(`Distributed to whales: ${distributedToWhales / Math.pow(10, decimals)} tokens (${(distributedToWhales / totalSupply * 100).toFixed(2)}%)`);
-  console.log(`Distributed to retail: ${distributedToRetail / Math.pow(10, decimals)} tokens (${(distributedToRetail / totalSupply * 100).toFixed(2)}%)`);
-  console.log(`Remaining with mint authority: ${(totalSupply - distributedToWhales - distributedToRetail) / Math.pow(10, decimals)} tokens`);
 }
 
-// Save token information to a file
+/**
+ * Save token information to a JSON file
+ */
 export function saveTokenInfo(
   mint,
   config
 ) {
-  const tokenData = {
-    mint: mint.toString(),
-    name: config.name,
-    symbol: config.symbol,
-    decimals: config.decimals,
-    totalSupply: config.totalSupply
-  };
-  
-  fs.writeFileSync("token-info.json", JSON.stringify(tokenData, null, 2));
-  console.log("Token information saved to token-info.json");
+  try {
+    const tokenInfo = {
+      mint: mint.toString(),
+      name: config.name,
+      symbol: config.symbol,
+      decimals: config.decimals,
+      totalSupply: 1_000_000_000
+    };
+    
+    // Save to public directory for easy access from the frontend
+    fs.mkdirSync('public', { recursive: true });
+    fs.writeFileSync('public/token-info.json', JSON.stringify(tokenInfo, null, 2));
+    console.log("✅ Token info saved to public/token-info.json");
+    
+    return tokenInfo;
+  } catch (error) {
+    console.error("❌ Error saving token info:", error);
+    throw error;
+  }
 }
 
-// Main function to create and distribute tokens
+/**
+ * Complete token setup process
+ * Creates a token and distributes it to all accounts
+ */
 export async function setupToken(connection) {
   try {
-    // Load accounts from file
-    const accountData = JSON.parse(fs.readFileSync("accounts.json", "utf-8"));
+    console.log("📣 Starting token setup process...");
     
-    // Use the first account as the payer and mint authority
-    const payerData = accountData[0];
-    const payer = Keypair.fromSecretKey(Buffer.from(payerData.secretKey, "base64"));
+    // Check if accounts exist
+    if (!fs.existsSync('accounts.json')) {
+      throw new Error("No accounts found. Please create accounts first using 'npm run create-accounts-js'");
+    }
     
-    console.log(`Using account ${payer.publicKey.toString()} as payer and mint authority`);
+    console.log("📂 Loading accounts from accounts.json...");
     
-    // Create the token
-    const { mint, config } = await createToken(connection, payer);
+    // Read account data
+    const accountsData = JSON.parse(fs.readFileSync('accounts.json', 'utf8'));
+    console.log(`📊 Loaded ${accountsData.length} accounts`);
     
-    // Save token information
-    saveTokenInfo(mint.publicKey, config);
+    // Create keypairs from account data with robust error handling
+    const wallets = accountsData.map((account, index) => {
+      try {
+        console.log(`Processing account ${index + 1}/${accountsData.length}: ${account.publicKey}`);
+        
+        // Handle different formats of secretKey
+        let secretKeyBuffer;
+        
+        if (typeof account.secretKey === 'string') {
+          // Handle base64 string format
+          secretKeyBuffer = Buffer.from(account.secretKey, 'base64');
+          console.log(`  Account ${index + 1} has string secretKey (base64)`);
+        } else if (Array.isArray(account.secretKey)) {
+          // Handle array format
+          secretKeyBuffer = Uint8Array.from(account.secretKey);
+          console.log(`  Account ${index + 1} has array secretKey`);
+        } else {
+          throw new Error(`Account ${index + 1} has invalid secretKey format: ${typeof account.secretKey}`);
+        }
+        
+        // Validate secretKey length
+        if (secretKeyBuffer.length !== 64) {
+          throw new Error(`Account ${index + 1} has invalid secretKey length: ${secretKeyBuffer.length}, expected 64`);
+        }
+        
+        // Create keypair
+        const keypair = Keypair.fromSecretKey(secretKeyBuffer);
+        
+        // Verify public key matches
+        if (keypair.publicKey.toString() !== account.publicKey) {
+          console.warn(`  ⚠️ Warning: Account ${index + 1} public key mismatch: ${keypair.publicKey.toString()} vs ${account.publicKey}`);
+        } else {
+          console.log(`  ✅ Account ${index + 1} keypair successfully created`);
+        }
+        
+        return {
+          publicKey: new PublicKey(account.publicKey),
+          secretKey: secretKeyBuffer,
+          keypair: keypair,
+          type: account.type || (index < Math.floor(accountsData.length * 0.4) ? 'whale' : 'retail')
+        };
+      } catch (error) {
+        console.error(`❌ Error processing account ${index + 1} (${account.publicKey}): ${error.message}`);
+        throw new Error(`Failed to process account ${index + 1}: ${error.message}`);
+      }
+    });
     
-    // Categorize wallets as whale or retail
-    // Use 40% of wallets as whales (20 wallets) and 60% as retail (30 wallets)
-    const wallets = accountData.map((account, index) => ({
-      publicKey: account.publicKey,
-      secretKey: account.secretKey,
-      type: index < 20 ? 'whale' : 'retail'
-    }));
+    // Check if we have a payer wallet (create one if not)
+    let payer;
+    if (fs.existsSync('source-wallet.json')) {
+      console.log("💼 Loading source wallet...");
+      try {
+        const sourceWalletData = JSON.parse(fs.readFileSync('source-wallet.json', 'utf8'));
+        
+        // Handle different formats of secretKey for source wallet
+        let sourceSecretKeyBuffer;
+        
+        if (typeof sourceWalletData.secretKey === 'string') {
+          // Handle base64 string format
+          sourceSecretKeyBuffer = Buffer.from(sourceWalletData.secretKey, 'base64');
+          console.log("  Source wallet has string secretKey (base64)");
+        } else if (Array.isArray(sourceWalletData.secretKey)) {
+          // Handle array format
+          sourceSecretKeyBuffer = Uint8Array.from(sourceWalletData.secretKey);
+          console.log("  Source wallet has array secretKey");
+        } else {
+          throw new Error(`Source wallet has invalid secretKey format: ${typeof sourceWalletData.secretKey}`);
+        }
+        
+        // Validate secretKey length
+        if (sourceSecretKeyBuffer.length !== 64) {
+          throw new Error(`Source wallet has invalid secretKey length: ${sourceSecretKeyBuffer.length}, expected 64`);
+        }
+        
+        // Create keypair
+        payer = Keypair.fromSecretKey(sourceSecretKeyBuffer);
+        
+        // Verify public key matches
+        if (payer.publicKey.toString() !== sourceWalletData.publicKey) {
+          console.warn(`⚠️ Warning: Source wallet public key mismatch: ${payer.publicKey.toString()} vs ${sourceWalletData.publicKey}`);
+        } else {
+          console.log(`💰 Source wallet loaded: ${payer.publicKey.toString()}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error loading source wallet: ${error.message}`);
+        throw new Error(`Failed to load source wallet: ${error.message}`);
+      }
+    } else {
+      console.log("⚠️ No source wallet found. Creating a new one...");
+      payer = Keypair.generate();
+      const walletData = {
+        publicKey: payer.publicKey.toString(),
+        secretKey: Buffer.from(payer.secretKey).toString('base64')
+      };
+      fs.writeFileSync('source-wallet.json', JSON.stringify(walletData, null, 2));
+      console.log(`💰 Created new source wallet: ${payer.publicKey.toString()}`);
+      console.log("⚠️ Please fund this wallet with SOL before continuing");
+      
+      // Don't proceed if we had to create a new wallet (it needs funding)
+      throw new Error("New source wallet created. Please fund it with SOL and run this command again");
+    }
+    
+    // Check payer balance
+    const payerBalance = await connection.getBalance(payer.publicKey);
+    console.log(`💰 Source wallet balance: ${payerBalance / 1000000000} SOL`);
+    
+    if (payerBalance < 10000000) { // 0.01 SOL
+      throw new Error("Source wallet has insufficient SOL balance. Minimum 0.01 SOL required");
+    }
+    
+    // Create token
+    console.log("🪙 Creating token...");
+    const tokenData = await createToken(connection, payer);
+    console.log(`✅ Token created: ${tokenData.mint.toString()}`);
     
     // Distribute tokens
-    await distributeTokens(connection, mint.publicKey, payer, wallets);
+    console.log("📦 Distributing tokens to wallets...");
+    const distributionResult = await distributeTokens(
+      connection,
+      tokenData.mint,
+      payer,
+      wallets.map(w => ({
+        publicKey: w.publicKey,
+        secretKey: w.secretKey,
+        type: w.type
+      }))
+    );
     
-    console.log("Token setup completed successfully!");
+    // Save token info for the UI
+    console.log("💾 Saving token info...");
+    saveTokenInfo(tokenData.mint, tokenData);
+    
+    console.log("✅ Token setup completed successfully!");
+    return {
+      mint: tokenData.mint.toString(),
+      name: tokenData.name,
+      symbol: tokenData.symbol,
+      decimals: tokenData.decimals,
+      transfers: distributionResult.transfers,
+      totalDistributed: distributionResult.totalDistributed
+    };
   } catch (error) {
-    console.error("Error setting up token:", error);
+    console.error("❌ Token setup failed:", error);
+    throw error;
   }
 } 

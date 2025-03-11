@@ -1,0 +1,258 @@
+{
+  "timestamp": 1741689674925,
+  "totalDistributed": 1072411979,
+  "distributionPercentage": 107.2411979,
+  "whalePercentage": 65.21472630808799,
+  "balances": [
+    {
+      "publicKey": "C3TgSAErVPNohqoH2EnQp9ucBoK4J8ZrbuBPL1zddCEL",
+      "type": "whale",
+      "balance": 45100762
+    },
+    {
+      "publicKey": "ERDpmamsihE9B7iUnAULi24SpvddtxGbPFc2pN7CZUyF",
+      "type": "whale",
+      "balance": 21067200
+    },
+    {
+      "publicKey": "Fv8JUxeB79NchuCzhgte4WwGKFM66AALHcKj8H2wcVbU",
+      "type": "whale",
+      "balance": 34312577
+    },
+    {
+      "publicKey": "9YXrjGaU1KzX6YbMp4CW74mM7jeNvvJFjtBfUTM9HbRv",
+      "type": "whale",
+      "balance": 42187790
+    },
+    {
+      "publicKey": "5jqRhTHeeysqqGVn3zzUpZCf3VMxUcZ7P2S8PBw6VQu6",
+      "type": "whale",
+      "balance": 30750989
+    },
+    {
+      "publicKey": "AgFCebr66HwYRpc7an6ENMgtFXa9XazNYRo8anSGP6t9",
+      "type": "whale",
+      "balance": 44278423
+    },
+    {
+      "publicKey": "8d2PLorAuaRsSHuvRnqdZpDNgxMgPtmQDMFQGfUuwSnK",
+      "type": "whale",
+      "balance": 42350351
+    },
+    {
+      "publicKey": "APCVcUtySLeqqUxXDqTyEFYGS7ziFGs7vdcKxB9knikY",
+      "type": "whale",
+      "balance": 27670821
+    },
+    {
+      "publicKey": "2JM6CgG4JsQ3oVWFKGe14Me4M1jVB4wn6nzV8Vu2JGV4",
+      "type": "whale",
+      "balance": 24528848
+    },
+    {
+      "publicKey": "HPuD9CWq99zqoieroTELzMFM3hwq3tkht2XnwB3GyYPc",
+      "type": "whale",
+      "balance": 47766444
+    },
+    {
+      "publicKey": "ETHmnLRX9fUMHtixe31LwTpUxjmXjsnrFZqcAiMbuGZT",
+      "type": "whale",
+      "balance": 35697142
+    },
+    {
+      "publicKey": "8EDJ24NEqnqtadTXUKkAgL1NBrLPeHw47ZoK547tev14",
+      "type": "whale",
+      "balance": 26963226
+    },
+    {
+      "publicKey": "D1hep5dfkVYVyM8sPizVACd19eydQ5qhrDx6TGG7qWUD",
+      "type": "whale",
+      "balance": 21690509
+    },
+    {
+      "publicKey": "CZM7ZAGBZGyhFChZeBSpJDui37wSi8gH4PWnrDoLvYjE",
+      "type": "whale",
+      "balance": 32126790
+    },
+    {
+      "publicKey": "GFtmVdgo6RehoXAyaGtRYyxXjKLG1LYY3CKzJurzX6b7",
+      "type": "whale",
+      "balance": 45227641
+    },
+    {
+      "publicKey": "42ar9B3TjgxAh4mLvSCb3GYHsBQC5FQ7JgNTdQERscar",
+      "type": "whale",
+      "balance": 25678842
+    },
+    {
+      "publicKey": "5FekT64ZC7cQh3u2JBGyKXeT7KMERzLXq58gmoYsWpWS",
+      "type": "whale",
+      "balance": 42160312
+    },
+    {
+      "publicKey": "ALm3MtYmftw9dERXDvo5cdm9pFxUjGK4LuXhpnTvQMQV",
+      "type": "whale",
+      "balance": 33720164
+    },
+    {
+      "publicKey": "B7GqzPmGb61sZCYfVEKkTZqgJcgmC4wfkddwZFqia7Kp",
+      "type": "whale",
+      "balance": 27498136
+    },
+    {
+      "publicKey": "63bgKj9CZNhuduebrP1T6QgSjPakSEdwckSw1zoCBhRB",
+      "type": "whale",
+      "balance": 48593570
+    },
+    {
+      "publicKey": "3zkEM49wvahftPC7F1TQt5mJt6ThvRqoz9R18Z4DcAQS",
+      "type": "retail",
+      "balance": 6829139
+    },
+    {
+      "publicKey": "CxscToPiLPZNnW6DcNdVC8y3kcBYaJFju45SMgQresGj",
+      "type": "retail",
+      "balance": 17234149
+    },
+    {
+      "publicKey": "4QynBWjMxtS5sGTVHYCUwuciNBPDymmv6es4tySXqXkP",
+      "type": "retail",
+      "balance": 15085396
+    },
+    {
+      "publicKey": "AQqMuJUnRW4tqCtk9oLEmFjXZ9nbS6METCcnaJuRrXqg",
+      "type": "retail",
+      "balance": 14117196
+    },
+    {
+      "publicKey": "6f1RE8jYyE36bYLzhmbycmu2RfempvXftGJXhdWyZeJQ",
+      "type": "retail",
+      "balance": 6659658
+    },
+    {
+      "publicKey": "EocncDH1GwiNWDCMcQG84y6hSMvmagjSWD73rpkij6g6",
+      "type": "retail",
+      "balance": 13586486
+    },
+    {
+      "publicKey": "3LEQhDRLzqrdsFy6tsyY5RS8AJYu4RD1tFNL3fNbJFnf",
+      "type": "retail",
+      "balance": 7503712
+    },
+    {
+      "publicKey": "G9y6FFmD7ZQt4ffQsdoHnCBhHQacbZDj18zvmufGf2aw",
+      "type": "retail",
+      "balance": 8452186
+    },
+    {
+      "publicKey": "ELs4iDdhTW5f3wnUu9MrpHKVH8xgqDkUEVNczzQKrhQY",
+      "type": "retail",
+      "balance": 5663778
+    },
+    {
+      "publicKey": "FFnu4Cf6TDamtkej8GMuKPwTg1XT2TB2nfVPmRrnrM1h",
+      "type": "retail",
+      "balance": 13546518
+    },
+    {
+      "publicKey": "AafwXKZHHCjwsr76h8ujaSdk93fuR5taLe61bbDSq37Z",
+      "type": "retail",
+      "balance": 16879692
+    },
+    {
+      "publicKey": "An8TiwikTva95TDMngHdwwxXVxkTwCMTxHTboHDXjreS",
+      "type": "retail",
+      "balance": 15821389
+    },
+    {
+      "publicKey": "H55YHza9qGBUt3kTgRGB5Lm1pVJJNTQ8gJ3btEBqSvJm",
+      "type": "retail",
+      "balance": 6440082
+    },
+    {
+      "publicKey": "6ocEtvXLcVPqG6TUnUJEtmxeKwBnrKGeGLHWvoNpMsvQ",
+      "type": "retail",
+      "balance": 18764135
+    },
+    {
+      "publicKey": "6i2ES8zoZzFowZUHUXDRktbdNDfz4TbeawnbZSPfhRDW",
+      "type": "retail",
+      "balance": 18346148
+    },
+    {
+      "publicKey": "7TwnVM5SwydMvdTjvrvVXSghavUUsg2j25oAU8baAy84",
+      "type": "retail",
+      "balance": 8510101
+    },
+    {
+      "publicKey": "DLV63Vb2UifyNCUB12ujbTr6cnDDMTooFEd6yRKAbusn",
+      "type": "retail",
+      "balance": 12763581
+    },
+    {
+      "publicKey": "FB6LQVNdXacvg1ZyrmeFixsXG7hxvrpaJUD2R8cKgHwL",
+      "type": "retail",
+      "balance": 16593604
+    },
+    {
+      "publicKey": "82CbbirnwyN7PNVFRxwk5b7ToNBtcPmh5ZktEJR3ToE",
+      "type": "retail",
+      "balance": 14999950
+    },
+    {
+      "publicKey": "BqTzEhjvZR6pkn5C6E3ethj7jyhEX9ias4m9VKdx6e9N",
+      "type": "retail",
+      "balance": 7185949
+    },
+    {
+      "publicKey": "B6K9UWtRydynMkdsxW1EwGB5NUM5QiiVUJgWUhFHUHL1",
+      "type": "retail",
+      "balance": 15868288
+    },
+    {
+      "publicKey": "DxmfKtbLa96rjiTqCd1CyYUMX7JT6kA7qNgwFXRmWPGK",
+      "type": "retail",
+      "balance": 7802244
+    },
+    {
+      "publicKey": "996C68mqshu8Y2ukyetvHLUFuZQtfQc6CE7eoML6VE6G",
+      "type": "retail",
+      "balance": 16627430
+    },
+    {
+      "publicKey": "4nx6BZr2jG7tTL2T7oZnYPufYzgoFQ3Ps5nELQm1EEVF",
+      "type": "retail",
+      "balance": 9218155
+    },
+    {
+      "publicKey": "dVx3h6DYcnh1jF8XBzruEr9UdD8ButL1LSgEAfdth8F",
+      "type": "retail",
+      "balance": 12149206
+    },
+    {
+      "publicKey": "HdNVmTsMxFYdHvXZp1omz2Q92rm3nWqQkDTZsT7uDTsx",
+      "type": "retail",
+      "balance": 15457444
+    },
+    {
+      "publicKey": "GJJxJDfE1nu3318YN1kWW2BU5o67b2eXYs9yUEH6g1BS",
+      "type": "retail",
+      "balance": 6367729
+    },
+    {
+      "publicKey": "4mrMFp8VLC8ethkh4TA9fedfqqd6MDyfR93jJsX5gGEa",
+      "type": "retail",
+      "balance": 19303498
+    },
+    {
+      "publicKey": "42cpCc2YJKc3S8FhKN31ZL2bU6jspYydtthLGxGQHZCo",
+      "type": "retail",
+      "balance": 17435164
+    },
+    {
+      "publicKey": "G23vkusBhmGynJ142mPYdNr2pXwh9Vqj2a49553JG4zo",
+      "type": "retail",
+      "balance": 7829435
+    }
+  ]
+}

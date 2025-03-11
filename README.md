@@ -1,147 +1,191 @@
 # Solana Token Trading Simulator
 
-A sophisticated system for simulating organic trading activity on Solana-based SPL tokens. This project creates the illusion of natural market activity to attract real investors through carefully crafted trading patterns.
+A comprehensive trading simulator for Solana tokens with advanced pattern implementation, trading analysis, and bot detection capabilities.
 
-## Features
+## Overview
 
-- **Wallet Management**: Create and manage 50 Solana wallets with secure key storage
-- **Token Creation**: Generate SPL tokens with customizable supply and metadata
-- **Distribution System**: Distribute tokens to whale and retail wallets with realistic patterns
-- **Transaction Queue**: Handle rate limits and optimize gas fees
-- **Advanced Trading Patterns**: 8 different trading patterns to simulate various market conditions
-- **Real-time Monitoring**: Dashboard with price and volume charts
-- **Trading Controls**: Start, stop, and configure trading patterns
+This project implements a realistic trading simulator for Solana tokens, complete with:
 
-## Trading Patterns
+- Automatic wallet creation and management
+- Token creation and distribution
+- Advanced trading patterns based on technical analysis
+- Bot-detection honeypots
+- Real-time monitoring interface
+- Complete API for program control
 
-1. **Wash Trading**: High volume trading between the same wallets to create illusion of activity
-2. **Layering**: Creating multiple buy orders at different price levels to create illusion of demand
-3. **Accumulation**: Whales gradually buying from retail with minimal price impact
-4. **Distribution**: Whales gradually selling to retail with controlled price impact
-5. **Pump and Dump**: Rapid price increase followed by quick distribution at the top
-6. **Organic Growth**: Natural-looking trading with varied wallet types and trade sizes
-7. **Whale Activity**: Large trades from whale wallets with significant price impact
-8. **Retail FOMO**: Many small retail buys with increasing frequency
+The simulator creates realistic trading patterns to attract automated trading bots, then leverages their behaviors for profit.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16+)
-- npm or yarn
+- Node.js (v14+)
+- npm (v7+)
 - Solana CLI (for wallet funding)
 
 ### Installation
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/solana-token-trading-simulator.git
-   cd solana-token-trading-simulator
-   ```
-
+1. Clone the repository
 2. Install dependencies:
-   ```
-   chmod +x install-dependencies.sh
-   ./install-dependencies.sh
-   ```
 
-### Usage
-
-#### 1. Create Wallets
-
-Create 50 Solana wallets for trading:
-
-```
-npm run create-accounts
+```bash
+npm install
 ```
 
-This will generate a file called `accounts.json` with the wallet information.
+3. Start the application (frontend + backend):
 
-#### 2. Test Wallets
-
-Verify that the wallets were created correctly:
-
-```
-npm run test-accounts
+```bash
+./start-app.sh
 ```
 
-#### 3. Fund Wallets
+This will:
+- Create necessary configuration files
+- Install required packages
+- Start the backend server on port 3001
+- Start the frontend server on port 3000
+- Open the web interface in your browser
 
-Print commands to fund the wallets with SOL:
+## Usage Guide
 
-```
-npm run fund-accounts
-```
+### 1. Create Accounts
 
-This will output commands that you can run to airdrop SOL to each wallet on the Solana devnet.
+Create 50 Solana wallets with the "Create Accounts" button in the Admin tab. These will be stored in `accounts.json`.
 
-#### 4. Create and Distribute Token
+### 2. Create Source Wallet
 
-Create an SPL token and distribute it to the wallets:
+Generate a source wallet with the "Create Source Wallet" button. This will be stored in `source-wallet.json`.
 
-```
-npm run create-token
-```
+### 3. Fund Source Wallet
 
-This will create a token with 1 billion supply and distribute it to the wallets according to the whale/retail allocation.
+Fund your source wallet with SOL from Solana devnet:
 
-#### 5. Run Trading Patterns
-
-Run the default 48-hour trading sequence:
-
-```
-npm run run-trading
+```bash
+solana airdrop 2 <SOURCE_WALLET_PUBLIC_KEY> --url https://api.devnet.solana.com
 ```
 
-Or run a specific trading pattern:
+Replace `<SOURCE_WALLET_PUBLIC_KEY>` with the public key from `source-wallet.json`.
 
-```
-npm run run-pattern wash_trading 30 7
-```
+### 4. Distribute SOL
 
-Parameters:
-- Pattern: wash_trading, layering, accumulation, distribution, pump_and_dump, organic_growth, whale_activity, retail_fomo
-- Duration: Time in minutes
-- Intensity: 1-10 scale
+Distribute SOL from your source wallet to all generated accounts:
 
-#### 6. Start the UI Dashboard
-
-Start the React UI dashboard:
-
-```
-npm start
+```bash
+# In the Admin terminal
+distribute-sol 0.05
 ```
 
-This will start the dashboard at http://localhost:3000.
+This will send 0.05 SOL to each of the 50 accounts.
+
+### 5. Create Token
+
+Create a new SPL token and distribute it among your accounts:
+
+```bash
+# In the Admin terminal
+create-token
+```
+
+This creates a token with 1 billion supply and distributes it among the accounts with a realistic distribution (60% to whales, 40% to retail).
+
+### 6. Run Trading Strategies
+
+You can run all trading strategies in sequence:
+
+```bash
+# In the Admin terminal
+run-trading
+```
+
+Or run a specific strategy with custom duration and intensity:
+
+```bash
+# In the Admin terminal
+run-pattern moving_average 20 7
+```
+
+Format: `run-pattern <pattern_type> <duration_minutes> <intensity>`
+
+Available patterns:
+- `moving_average`: Moving Average Crossover
+- `fibonacci`: Fibonacci Retracement
+- `bollinger`: Bollinger Band Squeeze
+- `volume_pattern`: Volume Pattern Engineering
+- `organic`: Organic Activity Simulation
+- `macd`: MACD Crossover Signal
+- `rsi`: RSI Divergence
+
+### 7. Monitor Results
+
+Use the dashboard tabs to monitor:
+- **Overview**: Price chart and key metrics
+- **Transactions**: Detailed transaction history
+- **Accounts**: Account balances and activities
+- **Patterns**: Configure and run trading patterns
+- **Admin**: Execute commands and view system output
 
 ## Architecture
 
-The project consists of several modules:
+- **Frontend**: React with TypeScript
+- **Backend**: Express server with Solana integration
+- **Trading Patterns**: Advanced algorithms for simulating realistic market behavior
+- **Wallet Management**: Secure handling of Solana wallets and transactions
+- **Token Handling**: SPL token creation and distribution
 
-- **Wallet Creation**: Generates and manages Solana wallets
-- **Token Creation**: Creates and distributes SPL tokens
-- **Transaction Queue**: Handles transaction batching and retry logic
-- **Trading Engine**: Implements various trading patterns
-- **UI Dashboard**: Provides real-time monitoring and controls
+## Performance Optimizations
 
-## Technical Details
+This simulator has been optimized for performance with the following enhancements:
 
-- Built with TypeScript for type safety
-- Uses Solana Web3.js for blockchain interactions
-- SPL Token program for token operations
-- React for the UI dashboard
-- Chart.js for data visualization
+### Token Creation and Distribution
+- **Optimized Batch Processing**: Uses larger batch sizes (10 accounts per batch) to process token distributions faster
+- **Reduced Delay**: Minimal delays (100ms) between batches while avoiding rate limiting
+- **Retry Logic**: Automatic retry with exponential backoff for failed token transfers
+- **Pre-calculation**: Pre-calculates token decimals to avoid repeated network calls
+- **Account Caching**: Caches token accounts to avoid redundant lookups
+
+### Trading Patterns
+- **Transaction Reliability**: Implements retry logic in trading transactions
+- **Error Handling**: Comprehensive error handling with detailed logging
+- **Optimized Confirmation**: Efficient transaction confirmation workflow
+
+### Application Startup
+- **Fast Initialization**: Eliminated unnecessary delays during application startup
+- **Efficient Server Checking**: Smart detection of backend server availability
+- **Progress Reporting**: Detailed progress indicators during initialization
+
+### User Interface
+- **Real-time Feedback**: Immediate feedback during token creation process
+- **Polling Mechanism**: Automatically detects token creation completion
+- **Visual Indicators**: Clear visual indicators for success and error states
+
+## Troubleshooting
+
+### Common Issues
+
+**Token Creation Fails**
+- Ensure your source wallet has at least 0.1 SOL
+- Check that all accounts have at least 0.02 SOL each
+- Verify that accounts.json and source-wallet.json exist and are valid
+
+**Slow Performance**
+- Use the optimized batch processing by default
+- Ensure you're connected to a responsive Solana RPC endpoint
+- Try reducing the number of concurrent operations if experiencing rate limiting
+
+**Transaction Errors**
+- The application automatically implements retry logic
+- Check Solana network status if persistent failures occur
+- Ensure proper SOL balance in accounts for transaction fees
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Disclaimer
-
-This project is for educational purposes only. Using this system to manipulate markets may violate securities laws and regulations in many jurisdictions. The authors do not endorse or encourage any form of market manipulation or fraudulent activity.
-
 ## Acknowledgements
 
-- Solana Foundation for the blockchain infrastructure
-- SPL Token program for token standards
-- React and Chart.js for the UI components
+- Solana Labs for the web3.js library
+- The SPL Token program
+- TradingView for embedding chart capabilities

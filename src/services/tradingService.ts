@@ -1,4 +1,14 @@
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
+import { 
+  TOKEN_PROGRAM_ID, 
+  AccountLayout,
+  getMint,
+  getAccount,
+  getAssociatedTokenAddress,
+  createMint,
+  createAssociatedTokenAccount,
+  mintTo
+} from '@solana/spl-token';
 
 // Trading pattern types
 export type TradingPatternType = 
@@ -53,6 +63,17 @@ export interface TokenTransaction {
   signature: string;
 }
 
+interface AccountDetails {
+  publicKey: string;
+  secretKey: string;
+  balance: number;
+  tokenBalance: number;
+  isWhale: boolean;
+  lastActivity: number;
+  totalTransactions: number;
+  profitLoss: number;
+}
+
 // Mock data generator
 const generateMockData = (count: number): TradingDataPoint[] => {
   const data: TradingDataPoint[] = [];
@@ -87,7 +108,7 @@ const generateMockTransactions = (count: number): TokenTransaction[] => {
     const isWhale = Math.random() > 0.7;
     
     const transaction: TokenTransaction = {
-      timestamp: now - (Math.random() * 3600000), // Random time in the last hour
+      timestamp: now - (Math.random() * 3600000),
       sender: `Sender${Math.floor(Math.random() * 50) + 1}`.padEnd(43, '1'),
       receiver: `Receiver${Math.floor(Math.random() * 50) + 1}`.padEnd(43, '1'),
       amount: isWhale ? Math.random() * 1000000 : Math.random() * 10000,
@@ -98,7 +119,6 @@ const generateMockTransactions = (count: number): TokenTransaction[] => {
     transactions.push(transaction);
   }
   
-  // Sort by timestamp descending (newest first)
   return transactions.sort((a, b) => b.timestamp - a.timestamp);
 };
 
@@ -130,6 +150,8 @@ const generateMockWalletSummary = (): WalletSummary[] => {
 export class TradingService {
   private connection: Connection;
   private tokenMint: string;
+  private totalSupply: number = 1000000000;
+  private mintKeypair: Keypair;
   private mockStatus: TradingStatus = {
     isRunning: false,
     currentPattern: null,
@@ -140,20 +162,113 @@ export class TradingService {
   private mockInterval: NodeJS.Timeout | null = null;
   private mockData: TradingDataPoint[] = [];
   private mockTransactions: TokenTransaction[] = [];
+  private mockAccounts: { publicKey: PublicKey; secretKey: Uint8Array }[] = [];
+  private mintInfo: any = null; // Store mint info instead of Token instance
   
   constructor(connection: Connection, tokenMint: string) {
     this.connection = connection;
     this.tokenMint = tokenMint;
+    this.mintKeypair = Keypair.generate(); // For demo purposes
     this.initMockData();
+    this.initMockAccounts();
+  }
+  
+  private async initToken(): Promise<void> {
+    try {
+      const mintPublicKey = new PublicKey(this.tokenMint);
+      // Use getMint instead of Token class (deprecated)
+      this.mintInfo = await getMint(
+        this.connection,
+        mintPublicKey,
+        'confirmed',
+        TOKEN_PROGRAM_ID
+      );
+    } catch (error) {
+      console.error('Error initializing token:', error);
+    }
   }
   
   /**
    * Initialize mock trading data
    */
   private initMockData(): void {
-    // Generate initial mock data for the past hour (60 data points, 1 per minute)
     this.mockData = generateMockData(60);
     this.mockTransactions = generateMockTransactions(20);
+  }
+  
+  private async initMockAccounts(): Promise<void> {
+    // Generate 50 mock accounts
+    for (let i = 0; i < 50; i++) {
+      const keypair = Keypair.generate();
+      this.mockAccounts.push({
+        publicKey: keypair.publicKey,
+        secretKey: keypair.secretKey
+      });
+    }
+
+    // In a real implementation, we would:
+    // 1. Create associated token accounts
+    // 2. Mint initial token supply
+    // 3. Distribute tokens to accounts
+    try {
+      const mint = await createMint(
+        this.connection,
+        this.mintKeypair,
+        this.mintKeypair.publicKey,
+        null,
+        9 // decimals
+      );
+
+      for (const account of this.mockAccounts) {
+        const associatedTokenAccount = await createAssociatedTokenAccount(
+          this.connection,
+          this.mintKeypair,
+          mint,
+          account.publicKey
+        );
+
+        // Mint some tokens to the account
+        const amount = Math.random() > 0.7 ? 
+          Math.floor(Math.random() * this.totalSupply * 0.1) : // Whale allocation
+          Math.floor(Math.random() * this.totalSupply * 0.01); // Retail allocation
+
+        await mintTo(
+          this.connection,
+          this.mintKeypair,
+          mint,
+          associatedTokenAccount,
+          this.mintKeypair.publicKey,
+          amount
+        );
+      }
+    } catch (error) {
+      console.error('Error initializing mock accounts:', error);
+    }
+  }
+
+  private async loadAccounts(): Promise<{ publicKey: PublicKey; secretKey: Uint8Array }[]> {
+    return this.mockAccounts;
+  }
+
+  private async getTokenBalance(publicKey: PublicKey): Promise<number> {
+    try {
+      const associatedTokenAddress = await getAssociatedTokenAddress(
+        new PublicKey(this.tokenMint),
+        publicKey
+      );
+
+      // For mock data, generate random balances
+      // In production, we would use:
+      // const account = await getAccount(this.connection, associatedTokenAddress);
+      // return Number(account.amount);
+      const isWhale = Math.random() > 0.7;
+      return isWhale ? 
+        Math.floor(Math.random() * this.totalSupply * 0.1) : // Whale balance (up to 10% of supply)
+        Math.floor(Math.random() * this.totalSupply * 0.01); // Retail balance (up to 1% of supply)
+    } catch (error) {
+      console.error('Error getting token balance:', error);
+      return 0;
+    }
   }
   
   /**
@@ -346,7 +461,82 @@ export class TradingService {
       name: 'SolTrader Token',
       symbol: 'STRD',
       decimals: 9,
-      totalSupply: 1000000000
+      totalSupply: this.totalSupply
     };
+  }
+
+  public async getAllAccounts(): Promise<AccountDetails[]> {
+    try {
+      console.log("Getting all accounts...");
+      
+      // First try to get accounts from the API
+      try {
+        const response = await fetch('http://localhost:3001/api/accounts');
+        const data = await response.json();
+        
+        if (data.success && data.accounts && data.accounts.length > 0) {
+          console.log(`Loaded ${data.accounts.length} accounts from API`);
+          
+          // Process accounts from API
+          const accountDetails: AccountDetails[] = [];
+          
+          for (const account of data.accounts) {
+            try {
+              const publicKey = new PublicKey(account.publicKey);
+              const balance = await this.connection.getBalance(publicKey) / LAMPORTS_PER_SOL;
+              const tokenBalance = await this.getTokenBalance(publicKey);
+              
+              accountDetails.push({
+                publicKey: account.publicKey,
+                secretKey: account.secretKey,
+                balance,
+                tokenBalance,
+                isWhale: account.type === 'whale',
+                lastActivity: Date.now() - Math.floor(Math.random() * 86400000), // Random activity in last 24h
+                totalTransactions: Math.floor(Math.random() * 50) + 1,
+                profitLoss: (Math.random() * 2 - 1) * tokenBalance * 0.1 // Random P/L ±10%
+              });
+            } catch (error) {
+              console.error(`Error processing account ${account.publicKey}:`, error);
+            }
+          }
+          
+          return accountDetails;
+        }
+      } catch (apiError) {
+        console.error("Error fetching accounts from API:", apiError);
+      }
+      
+      // Fallback to mock accounts if API fails
+      console.log("Falling back to mock accounts");
+      const mockAccountDetails: AccountDetails[] = [];
+      
+      for (let i = 0; i < 50; i++) {
+        const isWhale = i < 20; // First 20 are whales
+        const balance = isWhale ? 
+          Math.random() * 10 + 5 : // 5-15 SOL for whales
+          Math.random() * 2 + 0.1; // 0.1-2.1 SOL for retail
+          
+        const tokenBalance = isWhale ?
+          Math.floor(Math.random() * 50000000 + 10000000) : // 10M-60M tokens for whales
+          Math.floor(Math.random() * 5000000 + 100000);    // 100K-5.1M tokens for retail
+          
+        mockAccountDetails.push({
+          publicKey: `MockAccount${i+1}`,
+          secretKey: 'MOCK_SECRET_KEY',
+          balance,
+          tokenBalance,
+          isWhale,
+          lastActivity: Date.now() - Math.floor(Math.random() * 86400000), // Random activity in last 24h
+          totalTransactions: Math.floor(Math.random() * 50) + 1,
+          profitLoss: (Math.random() * 2 - 1) * tokenBalance * 0.1 // Random P/L ±10%
+        });
+      }
+      
+      return mockAccountDetails;
+    } catch (error) {
+      console.error('Error getting all accounts:', error);
+      throw error;
+    }
   }
 } 

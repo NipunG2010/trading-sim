@@ -14,45 +14,45 @@ const TradingViewWidget = () => {
 
   useEffect(() => {
     if (containerRef.current) {
-      // Clear any existing content
       containerRef.current.innerHTML = '';
-
-      // Create widget container
       const widgetContainer = document.createElement('div');
       widgetContainer.className = 'tradingview-widget-container';
+      widgetContainer.setAttribute('role', 'region');
+      widgetContainer.setAttribute('aria-label', 'Trading Chart');
       widgetContainer.style.height = '100%';
       widgetContainer.style.width = '100%';
 
-      // Create widget div
       const widget = document.createElement('div');
       widget.className = 'tradingview-widget-container__widget';
       widget.style.height = 'calc(100% - 32px)';
       widget.style.width = '100%';
 
-      // Create copyright div
       const copyright = document.createElement('div');
       copyright.className = 'tradingview-widget-copyright';
       copyright.innerHTML = '<a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a>';
 
-      // Create script
       const script = document.createElement('script');
       script.type = 'text/javascript';
       script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
       script.async = true;
       script.innerHTML = JSON.stringify({
         autosize: true,
-        symbol: "NASDAQ:AAPL",
-        interval: "D",
+        symbol: "BINANCE:DOGEUSD",
+        interval: "1",
         timezone: "Etc/UTC",
         theme: "dark",
         style: "1",
         locale: "en",
+        enable_publishing: false,
         allow_symbol_change: true,
         calendar: false,
-        support_host: "https://www.tradingview.com"
+        support_host: "https://www.tradingview.com",
+        hide_volume: true,
+        backgroundColor: "rgba(19, 23, 34, 1)",
+        gridColor: "rgba(42, 46, 57, 0.3)",
+        container_id: "tradingview_chart"
       });
 
-      // Append elements
       widgetContainer.appendChild(widget);
       widgetContainer.appendChild(copyright);
       widgetContainer.appendChild(script);
@@ -60,7 +60,7 @@ const TradingViewWidget = () => {
     }
   }, []);
 
-  return <div ref={containerRef} style={{ height: '100%', width: '100%' }}></div>;
+  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;
 };
 
 // Dashboard props
@@ -78,6 +78,41 @@ interface TradingPattern {
   defaultIntensity: number;
 }
 
+interface AccountDetails {
+  publicKey: string;
+  secretKey: string;
+  balance: number;
+  tokenBalance: number;
+  isWhale: boolean;
+  lastActivity: number;
+  totalTransactions: number;
+  profitLoss: number;
+}
+
+// Define the TokenInfo type
+interface TokenInfo {
+  name: string;
+  symbol: string;
+  decimals: number;
+  totalSupply: number;
+  mint?: string; // Add mint property
+}
+
+// Add this interface for balance info data
+interface BalanceItem {
+  publicKey: string;
+  balance: number;
+  type: string;
+}
+
+interface BalanceInfo {
+  timestamp: number;
+  totalDistributed: number;
+  distributionPercentage: number;
+  whalePercentage: number;
+  balances: BalanceItem[];
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   // State
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -90,15 +125,10 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   const [selectedPattern, setSelectedPattern] = useState<TradingPatternType | ''>('');
   const [patternDuration, setPatternDuration] = useState<number>(60); // minutes
   const [patternIntensity, setPatternIntensity] = useState<number>(5); // 1-10 scale
-  const [tokenInfo, setTokenInfo] = useState<{
-    name: string;
-    symbol: string;
-    decimals: number;
-    totalSupply: number;
-  } | null>(null);
+  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<TokenTransaction[]>([]);
   const [walletSummary, setWalletSummary] = useState<WalletSummary[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'wallets' | 'settings' | 'admin'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'wallets' | 'settings' | 'admin' | 'accounts'>('overview');
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
   const [adminOutput, setAdminOutput] = useState<string[]>([
     "Welcome to Solana Trading Simulator Admin Console",
@@ -107,6 +137,15 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   ]);
   const [isCommandRunning, setIsCommandRunning] = useState<boolean>(false);
   const adminOutputRef = useRef<HTMLDivElement>(null);
+  const [accountDetails, setAccountDetails] = useState<AccountDetails[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState<boolean>(true);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [tradingStatus, setTradingStatus] = useState('idle');
+  const [adminCommand, setAdminCommand] = useState('');
+  const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   // Create trading service
   const tradingService = new TradingService(connection, tokenMint);
@@ -144,7 +183,8 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
           name: info.name,
           symbol: info.symbol,
           decimals: info.decimals,
-          totalSupply: info.totalSupply
+          totalSupply: info.totalSupply,
+          mint: info.mint
         });
         
         // Get recent transactions
@@ -180,6 +220,104 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       adminOutputRef.current.scrollTop = adminOutputRef.current.scrollHeight;
     }
   }, [adminOutput]);
+  
+  // Fetch all data from trading service
+  const fetchAllData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch accounts
+      try {
+        const accountsResponse = await fetch('/api/accounts');
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
+          setAccounts(accountsData);
+        } else {
+          console.error('Error fetching accounts');
+        }
+      } catch (accountsError) {
+        console.error('Failed to fetch accounts:', accountsError);
+      }
+      
+      // Fetch token info
+      try {
+        const tokenResponse = await fetch('/token-info.json');
+        if (tokenResponse.ok) {
+          const tokenData = await tokenResponse.json();
+          setTokenInfo(tokenData);
+        } else {
+          console.error('Error fetching token info');
+        }
+      } catch (tokenError) {
+        console.error('Failed to fetch token info:', tokenError);
+      }
+      
+      // Try to get balance info if available
+      try {
+        const balanceResponse = await fetch('/balance-info.json');
+        if (balanceResponse.ok) {
+          const balanceData = await balanceResponse.json() as BalanceInfo;
+          if (balanceData && balanceData.balances && balanceData.balances.length > 0) {
+            // Update accounts with accurate balance data
+            const balanceMap: Record<string, { balance: number; type: string }> = {};
+            balanceData.balances.forEach((balanceItem: BalanceItem) => {
+              balanceMap[balanceItem.publicKey] = {
+                balance: balanceItem.balance,
+                type: balanceItem.type
+              };
+            });
+            
+            // Update accounts with balance info
+            setAccounts(prevAccounts => 
+              prevAccounts.map(account => ({
+                ...account,
+                balance: balanceMap[account.publicKey]?.balance || account.balance,
+                type: balanceMap[account.publicKey]?.type || account.type
+              }))
+            );
+            
+            console.log('Updated accounts with balance info from balance-info.json');
+          }
+        }
+      } catch (balanceError) {
+        console.error('Failed to fetch balance info, using API accounts data only:', balanceError);
+      }
+      
+      // Fetch transactions
+      try {
+        const txResponse = await fetch('/api/transactions');
+        if (txResponse.ok) {
+          const txData = await txResponse.json();
+          setTransactions(txData);
+        } else {
+          console.error('Error fetching transactions');
+        }
+      } catch (txError) {
+        console.error('Failed to fetch transactions:', txError);
+      }
+      
+      // Fetch trading status
+      try {
+        const statusResponse = await fetch('/api/trading-status');
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setTradingStatus(statusData.status);
+        } else {
+          console.error('Error fetching trading status');
+        }
+      } catch (statusError) {
+        console.error('Failed to fetch trading status:', statusError);
+      }
+      
+      setLastRefreshed(new Date());
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Data refresh failed:', error);
+      setError('Failed to refresh data. Please try again.');
+      setIsLoading(false);
+    }
+  };
   
   // Format timestamp as date string
   const formatTimestamp = (timestamp: number) => {
@@ -266,85 +404,134 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     setIsCommandRunning(true);
     
     try {
-      // Simulate terminal command execution
-      let output: string[] = [];
+      // Execute actual command by calling the API
+      let endpoint = '';
+      let body = {};
       
       if (command === 'create-accounts') {
-        output = [
-          "Creating 50 Solana accounts...",
-          "Generating keypairs...",
-          "Saving account information...",
-          "Accounts created successfully!"
-        ];
+        endpoint = '/api/create-accounts';
+        setAdminOutput(prev => [...prev, `Creating 50 Solana accounts...`]);
       } else if (command === 'test-accounts') {
-        output = [
-          "Testing account access...",
-          "Loaded 50 accounts",
-          "All accounts accessible",
-          "Account test completed successfully!"
-        ];
+        endpoint = '/api/test-accounts';
+        setAdminOutput(prev => [...prev, `Testing account access...`]);
       } else if (command === 'create-source-wallet') {
-        output = [
-          "Creating source wallet...",
-          "Generated new keypair",
-          "Public key: Abc123...xyz789",
-          "Wallet saved to source-wallet.json",
-          "Source wallet created successfully!"
-        ];
-      } else if (command === 'distribute-sol') {
-        output = [
-          "Distributing SOL to all accounts...",
-          "Loading accounts...",
-          "Sending 0.05 SOL to each account...",
-          "Transaction 1/50 confirmed",
-          "Transaction 2/50 confirmed",
-          "...",
-          "Transaction 50/50 confirmed",
-          "SOL distribution completed successfully!"
-        ];
+        endpoint = '/api/create-source-wallet';
+        setAdminOutput(prev => [...prev, `Creating source wallet...`]);
+      } else if (command.startsWith('distribute-sol')) {
+        endpoint = '/api/distribute-sol';
+        const amount = command.split(' ')[1]?.trim() || '0.05';
+        body = { amount };
+        setAdminOutput(prev => [...prev, `Distributing ${amount} SOL to all accounts...`]);
       } else if (command === 'create-token') {
-        output = [
-          "Creating new token...",
-          "Generating token metadata...",
-          "Name: SolTrader Token",
-          "Symbol: STRD",
-          "Decimals: 9",
-          "Creating token on Solana...",
-          "Token created successfully!",
-          "Mint address: DummyMint123...456",
-          "Distributing tokens to accounts...",
-          "Token distribution completed!"
-        ];
+        endpoint = '/api/create-token';
+        setAdminOutput(prev => [...prev, `Creating and distributing new token...`]);
+        setAdminOutput(prev => [...prev, `This process will run in the background and may take a few minutes.`]);
+        setAdminOutput(prev => [...prev, `You can continue using the app while the token is being created.`]);
       } else if (command === 'run-trading') {
-        output = [
-          "Starting trading simulation...",
-          "Initializing trading engine...",
-          "Running default 48-hour trading sequence...",
-          "Phase 1: Initial accumulation started",
-          "Trading simulation running in background!"
-        ];
-      } else if (command === 'status') {
-        output = [
-          "Checking system status...",
-          "Connection: Connected to Solana Devnet",
-          "Accounts: 50 accounts loaded",
-          "Token: SolTrader Token (STRD)",
-          "Trading: " + (currentPattern ? `Running ${currentPattern} pattern` : "Not running"),
-          "All systems operational!"
-        ];
+        endpoint = '/api/run-trading';
+        setAdminOutput(prev => [...prev, `Starting all trading patterns in sequence...`]);
+        setAdminOutput(prev => [...prev, `This will run all patterns one after another.`]);
+        setAdminOutput(prev => [...prev, `You can monitor progress in the Overview tab.`]);
+      } else if (command === 'stop-trading') {
+        endpoint = '/api/stop-trading';
+        setAdminOutput(prev => [...prev, `Stopping trading patterns...`]);
+      } else if (command.startsWith('run-pattern')) {
+        endpoint = '/api/run-pattern';
+        const args = command.split(' ');
+        const pattern = args[1]?.trim() || 'moving_average';
+        const duration = parseInt(args[2]?.trim() || '10', 10);
+        const intensity = parseInt(args[3]?.trim() || '5', 10);
+        body = { pattern, duration, intensity };
+        setAdminOutput(prev => [...prev, `Running ${pattern} pattern with duration ${duration} min and intensity ${intensity}...`]);
       } else {
-        output = [`Unknown command: ${command}`];
+        setAdminOutput(prev => [...prev, `Unknown command: ${command}`]);
+        setIsCommandRunning(false);
+        return;
       }
       
-      // Simulate delay for command execution
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Call API endpoint
+      setAdminOutput(prev => [...prev, `Executing command...`]);
       
-      // Add output to console
-      setAdminOutput(prev => [...prev, ...output, ""]);
+      try {
+        const response = await fetch(`http://localhost:3001${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Add command output to terminal
+          if (result.output) {
+            // Split output by newlines and add each line
+            const outputLines = result.output.split('\n');
+            for (const line of outputLines) {
+              if (line.trim()) {
+                setAdminOutput(prev => [...prev, line]);
+              }
+            }
+          } else {
+            setAdminOutput(prev => [...prev, result.message || 'Command completed successfully']);
+          }
+          
+          // Display success message
+          setAdminOutput(prev => [...prev, `✅ ${command} command processed successfully!`]);
+          
+          // For token creation, set up a polling mechanism to check for token-info.json
+          if (command === 'create-token') {
+            setAdminOutput(prev => [...prev, `Waiting for token creation to complete...`]);
+            
+            // Start polling for token info
+            const checkTokenInterval = setInterval(async () => {
+              try {
+                const response = await fetch('/token-info.json');
+                if (response.ok) {
+                  clearInterval(checkTokenInterval);
+                  setAdminOutput(prev => [...prev, `✅ Token created and distributed successfully!`]);
+                  await fetchAllData();
+                }
+              } catch (error) {
+                // Continue polling
+              }
+            }, 5000);
+            
+            // Stop polling after 5 minutes
+            setTimeout(() => {
+              clearInterval(checkTokenInterval);
+            }, 5 * 60 * 1000);
+          }
+          
+          // Refresh data after certain commands
+          if (['create-accounts', 'distribute-sol', 'test-accounts'].includes(command) || 
+              command.startsWith('create-accounts') || 
+              command.startsWith('distribute-sol')) {
+            setAdminOutput(prev => [...prev, `Refreshing data...`]);
+            await fetchAllData();
+            setAdminOutput(prev => [...prev, `Data refreshed successfully!`]);
+          }
+        } else {
+          setAdminOutput(prev => [...prev, `❌ Error: ${result.message || 'Unknown error'}`]);
+        }
+      } catch (fetchError) {
+        console.error('Error fetching from API:', fetchError);
+        setAdminOutput(prev => [...prev, `❌ Error communicating with server: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`]);
+      }
+      
+      // Command has completed
+      setIsCommandRunning(false);
     } catch (error) {
-      console.error(`Error executing command ${command}:`, error);
-      setAdminOutput(prev => [...prev, `Error: ${error}`, ""]);
-    } finally {
+      console.error('Error executing command:', error);
+      setAdminOutput(prev => [
+        ...prev, 
+        `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      ]);
       setIsCommandRunning(false);
     }
   };
@@ -402,59 +589,254 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     ]
   };
   
+  // Handle manual refresh
+  const handleRefresh = () => {
+    fetchAllData();
+  };
+  
+  // Initial data load
+  useEffect(() => {
+    fetchAllData();
+    
+    // Set up auto-refresh interval (every 10 seconds)
+    const interval = window.setInterval(() => {
+      fetchAllData();
+    }, 10000);
+    
+    setRefreshInterval(interval);
+    
+    // Clean up interval on component unmount
+    return () => {
+      if (refreshInterval) {
+        window.clearInterval(refreshInterval);
+      }
+    };
+  }, []);
+
+  // Add this function to render the accounts tab content
+  const renderAccountsTab = () => {
+    const whaleCount = accounts.filter(a => a.type === 'whale').length;
+    const retailCount = accounts.filter(a => a.type === 'retail').length;
+    
+    // Calculate total token distribution
+    const totalTokens = accounts.reduce((sum, account) => sum + (account.balance || 0), 0);
+    
+    return (
+      <div className="accounts-tab">
+        <div className="accounts-header">
+          <h2>Token Accounts</h2>
+          <div className="refresh-controls">
+            <button onClick={handleRefresh} disabled={isLoading}>
+              {isLoading ? 'Refreshing...' : 'Refresh Data'}
+            </button>
+            {lastRefreshed && (
+              <span className="last-refreshed">
+                Last updated: {lastRefreshed.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        </div>
+        
+        {error && <div className="error-message">{error}</div>}
+        
+        {isLoading ? (
+          <div className="loading">Loading account data...</div>
+        ) : (
+          <>
+            <div className="token-info-card">
+              <h3>Token Information</h3>
+              {tokenInfo ? (
+                <table>
+                  <tbody>
+                    <tr>
+                      <td>Name:</td>
+                      <td>{tokenInfo.name || 'Unknown'}</td>
+                    </tr>
+                    <tr>
+                      <td>Symbol:</td>
+                      <td>{tokenInfo.symbol || 'Unknown'}</td>
+                    </tr>
+                    <tr>
+                      <td>Mint:</td>
+                      <td className="address">{tokenInfo.mint || 'Not created yet'}</td>
+                    </tr>
+                    <tr>
+                      <td>Decimals:</td>
+                      <td>{tokenInfo.decimals || '0'}</td>
+                    </tr>
+                    <tr>
+                      <td>Total Supply:</td>
+                      <td>{tokenInfo.totalSupply?.toLocaleString() || '0'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <p>No token has been created yet. Use the Admin tab to create a token.</p>
+              )}
+            </div>
+            
+            <div className="accounts-list">
+              <h3>Wallet Distribution ({accounts.length} accounts)</h3>
+              {accounts.length > 0 ? (
+                <table className="accounts-table">
+                  <thead>
+                    <tr>
+                      <th>Type</th>
+                      <th>Account</th>
+                      <th>Balance</th>
+                      {tokenInfo && <th>% of Supply</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.map((account, index) => {
+                      // Calculate percentage of total supply if token info exists
+                      const percentage = tokenInfo && tokenInfo.totalSupply && account.balance 
+                        ? ((account.balance / tokenInfo.totalSupply) * 100).toFixed(2) 
+                        : '0.00';
+                          
+                      return (
+                        <tr key={index} className={account.type}>
+                          <td>
+                            <span className={`account-type ${account.type}`}>
+                              {account.type === 'whale' ? '🐋 Whale' : '👤 Retail'}
+                            </span>
+                          </td>
+                          <td className="address" title={account.publicKey}>
+                            {account.publicKey.slice(0, 4)}...{account.publicKey.slice(-4)}
+                          </td>
+                          <td className="balance">
+                            {account.balance?.toLocaleString() || '0'} {tokenInfo?.symbol || ''}
+                          </td>
+                          {tokenInfo && <td className="percentage">{percentage}%</td>}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <p>No accounts available. Use the Admin tab to create accounts.</p>
+              )}
+            </div>
+            
+            <div className="distribution-summary">
+              <h3>Distribution Summary</h3>
+              {accounts.length > 0 ? (
+                <>
+                  <div className="summary-stats">
+                    <div className="stat-item">
+                      <span className="stat-label">Total Accounts</span>
+                      <span className="stat-value">{accounts.length}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">Whale Accounts</span>
+                      <span className="stat-value">{whaleCount}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">Retail Accounts</span>
+                      <span className="stat-value">{retailCount}</span>
+                    </div>
+                    {tokenInfo && (
+                      <div className="stat-item">
+                        <span className="stat-label">Distributed</span>
+                        <span className="stat-value">
+                          {totalTokens > 0 
+                            ? ((totalTokens / tokenInfo.totalSupply) * 100).toFixed(1) 
+                            : '0.0'}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="distribution-chart">
+                    <div className="placeholder-chart">
+                      <div className="whale-portion" style={{ 
+                        width: `${whaleCount / accounts.length * 100}%` 
+                      }}>
+                        🐋 {((whaleCount / accounts.length) * 100).toFixed(1)}%
+                      </div>
+                      <div className="retail-portion" style={{ 
+                        width: `${retailCount / accounts.length * 100}%` 
+                      }}>
+                        👤 {((retailCount / accounts.length) * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p>No data available for distribution summary.</p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return <div className="loading">Loading dashboard...</div>;
   }
   
   return (
-    <div className="dashboard">
-      <div className="dashboard-header">
+    <div className="dashboard" role="main">
+      <div className="dashboard-header" role="banner">
         <div className="token-info">
           <h1>{tokenInfo?.name} ({tokenInfo?.symbol})</h1>
           <p>Decimals: {tokenInfo?.decimals} | Total Supply: {tokenInfo?.totalSupply.toLocaleString()}</p>
         </div>
         
         {currentPattern && (
-          <div className="trading-status">
+          <div className="trading-status" role="status" aria-live="polite">
             <p>
               Currently running: <strong>{availablePatterns.find(p => p.id === currentPattern)?.name || currentPattern}</strong>
             </p>
             <p>Time remaining: {formatRemainingTime(remainingTime)}</p>
-            <div className="progress-bar">
+            <div className="progress-bar" role="progressbar" aria-valuenow={progressPercentage} aria-valuemin={0} aria-valuemax={100}>
               <div className="progress" style={{ width: `${progressPercentage}%` }}></div>
             </div>
           </div>
         )}
       </div>
       
-      <div className="dashboard-tabs">
+      <div className="dashboard-tabs" role="navigation">
         <button 
           className={activeTab === 'overview' ? 'active' : ''} 
           onClick={() => setActiveTab('overview')}
+          aria-pressed={activeTab === 'overview'}
         >
           Overview
         </button>
         <button 
           className={activeTab === 'transactions' ? 'active' : ''} 
           onClick={() => setActiveTab('transactions')}
+          aria-pressed={activeTab === 'transactions'}
         >
           Transactions
         </button>
         <button 
+          className={activeTab === 'accounts' ? 'active' : ''} 
+          onClick={() => setActiveTab('accounts')}
+          aria-pressed={activeTab === 'accounts'}
+        >
+          Accounts
+        </button>
+        <button 
           className={activeTab === 'wallets' ? 'active' : ''} 
           onClick={() => setActiveTab('wallets')}
+          aria-pressed={activeTab === 'wallets'}
         >
           Wallets
         </button>
         <button 
           className={activeTab === 'settings' ? 'active' : ''} 
           onClick={() => setActiveTab('settings')}
+          aria-pressed={activeTab === 'settings'}
         >
           Settings
         </button>
         <button 
           className={activeTab === 'admin' ? 'active' : ''} 
           onClick={() => setActiveTab('admin')}
+          aria-pressed={activeTab === 'admin'}
         >
           Admin
         </button>
@@ -464,29 +846,16 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
         {activeTab === 'overview' && (
           <div className="overview-tab">
             <div className="chart-container trading-view-container">
-              <h3>Price Chart</h3>
+              <h3>Real-time Price Chart (DOGE/USD)</h3>
               <TradingViewWidget />
             </div>
             
-            <div className="chart-container">
-              <h3>Volume Chart</h3>
-              <Bar data={volumeChartData} options={{ maintainAspectRatio: false }} />
-            </div>
-            
             <div className="stats-container">
-              <div className="stat-card">
+              <div className="stat-card" role="region" aria-label="Total Transactions">
                 <h3>Total Transactions</h3>
                 <p className="stat-value">{recentTransactions.length}</p>
               </div>
-              <div className="stat-card">
-                <h3>Average Volume</h3>
-                <p className="stat-value">
-                  {tradingData.length > 0
-                    ? Math.round(tradingData.reduce((sum, d) => sum + d.volume, 0) / tradingData.length).toLocaleString()
-                    : '0'}
-                </p>
-              </div>
-              <div className="stat-card">
+              <div className="stat-card" role="region" aria-label="Whale Activity">
                 <h3>Whale Activity</h3>
                 <p className="stat-value">
                   {tradingData.length > 0
@@ -497,6 +866,8 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
             </div>
           </div>
         )}
+        
+        {activeTab === 'accounts' && renderAccountsTab()}
         
         {activeTab === 'transactions' && (
           <div className="transactions-tab">
