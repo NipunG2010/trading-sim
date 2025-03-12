@@ -409,21 +409,48 @@ export async function setupToken(connection) {
     if (fs.existsSync('source-wallet.json')) {
       console.log("💼 Loading source wallet...");
       try {
-        const sourceWalletData = JSON.parse(fs.readFileSync('source-wallet.json', 'utf8'));
+        // Read source wallet file contents
+        const sourceWalletData = fs.readFileSync('source-wallet.json', 'utf8');
         
-        // Handle different formats of secretKey for source wallet
+        // Try parsing as JSON
+        let secretKeyData;
+        try {
+          secretKeyData = JSON.parse(sourceWalletData);
+        } catch (parseError) {
+          console.error("Error parsing source wallet data:", parseError);
+          throw new Error(`Failed to parse source wallet data: ${parseError.message}`);
+        }
+        
+        // Handle different formats - direct array, object with secretKey, or base64 string
         let sourceSecretKeyBuffer;
         
-        if (typeof sourceWalletData.secretKey === 'string') {
-          // Handle base64 string format
-          sourceSecretKeyBuffer = Buffer.from(sourceWalletData.secretKey, 'base64');
-          console.log("  Source wallet has string secretKey (base64)");
-        } else if (Array.isArray(sourceWalletData.secretKey)) {
-          // Handle array format
-          sourceSecretKeyBuffer = Uint8Array.from(sourceWalletData.secretKey);
-          console.log("  Source wallet has array secretKey");
+        if (Array.isArray(secretKeyData)) {
+          // Handle direct array format (most common for our app)
+          sourceSecretKeyBuffer = Uint8Array.from(secretKeyData);
+          console.log("  Source wallet is in array format");
+        } else if (typeof secretKeyData === 'object' && secretKeyData !== null) {
+          // Handle object format with secretKey property
+          if (typeof secretKeyData.secretKey === 'string') {
+            // Handle base64 string format
+            sourceSecretKeyBuffer = Buffer.from(secretKeyData.secretKey, 'base64');
+            console.log("  Source wallet has string secretKey (base64)");
+          } else if (Array.isArray(secretKeyData.secretKey)) {
+            // Handle array format
+            sourceSecretKeyBuffer = Uint8Array.from(secretKeyData.secretKey);
+            console.log("  Source wallet has array secretKey");
+          } else {
+            throw new Error(`Source wallet has invalid secretKey format in object: ${typeof secretKeyData.secretKey}`);
+          }
+        } else if (typeof secretKeyData === 'string') {
+          // Try to decode as base64 string
+          try {
+            sourceSecretKeyBuffer = Buffer.from(secretKeyData, 'base64');
+            console.log("  Source wallet is in base64 string format");
+          } catch (error) {
+            throw new Error(`Source wallet has invalid format: ${error.message}`);
+          }
         } else {
-          throw new Error(`Source wallet has invalid secretKey format: ${typeof sourceWalletData.secretKey}`);
+          throw new Error(`Source wallet has unknown format: ${typeof secretKeyData}`);
         }
         
         // Validate secretKey length
@@ -433,13 +460,7 @@ export async function setupToken(connection) {
         
         // Create keypair
         payer = Keypair.fromSecretKey(sourceSecretKeyBuffer);
-        
-        // Verify public key matches
-        if (payer.publicKey.toString() !== sourceWalletData.publicKey) {
-          console.warn(`⚠️ Warning: Source wallet public key mismatch: ${payer.publicKey.toString()} vs ${sourceWalletData.publicKey}`);
-        } else {
-          console.log(`💰 Source wallet loaded: ${payer.publicKey.toString()}`);
-        }
+        console.log(`💰 Source wallet loaded: ${payer.publicKey.toString()}`);
       } catch (error) {
         console.error(`❌ Error loading source wallet: ${error.message}`);
         throw new Error(`Failed to load source wallet: ${error.message}`);
@@ -472,34 +493,26 @@ export async function setupToken(connection) {
     const tokenData = await createToken(connection, payer);
     console.log(`✅ Token created: ${tokenData.mint.toString()}`);
     
+    // Save token info before distribution
+    console.log("💾 Saving token info...");
+    const savedTokenInfo = saveTokenInfo(tokenData.mint, tokenData);
+    
     // Distribute tokens
     console.log("📦 Distributing tokens to wallets...");
     const distributionResult = await distributeTokens(
       connection,
       tokenData.mint,
       payer,
-      wallets.map(w => ({
-        publicKey: w.publicKey,
-        secretKey: w.secretKey,
-        type: w.type
-      }))
+      wallets.map(w => w.keypair)
     );
     
-    // Save token info for the UI
-    console.log("💾 Saving token info...");
-    saveTokenInfo(tokenData.mint, tokenData);
-    
-    console.log("✅ Token setup completed successfully!");
     return {
-      mint: tokenData.mint.toString(),
-      name: tokenData.name,
-      symbol: tokenData.symbol,
-      decimals: tokenData.decimals,
+      ...savedTokenInfo,
       transfers: distributionResult.transfers,
       totalDistributed: distributionResult.totalDistributed
     };
   } catch (error) {
-    console.error("❌ Token setup failed:", error);
+    console.error("❌ Error setting up token:", error);
     throw error;
   }
 } 

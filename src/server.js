@@ -199,10 +199,61 @@ app.post('/api/distribute-sol', (req, res) => {
   }
 });
 
+// Endpoint to check token creation status
+app.get('/api/token-status', (req, res) => {
+  try {
+    // Check if token-info.json exists
+    if (fs.existsSync('token-info.json')) {
+      const tokenInfo = JSON.parse(fs.readFileSync('token-info.json', 'utf-8'));
+      return res.json({
+        success: true,
+        isCreated: true,
+        tokenInfo
+      });
+    } else if (fs.existsSync('public/token-info.json')) {
+      const tokenInfo = JSON.parse(fs.readFileSync('public/token-info.json', 'utf-8'));
+      return res.json({
+        success: true,
+        isCreated: true,
+        tokenInfo
+      });
+    }
+    
+    return res.json({
+      success: true,
+      isCreated: false,
+      message: 'Token has not been created yet'
+    });
+  } catch (error) {
+    console.error('Error in /api/token-status:', error);
+    res.status(500).json({ 
+      success: false, 
+      isCreated: false,
+      message: error.message 
+    });
+  }
+});
+
 // Endpoint to create and distribute token
 app.post('/api/create-token', (req, res) => {
   try {
     console.log('Creating and distributing token...');
+    
+    // Check if token already exists
+    if (fs.existsSync('token-info.json') || fs.existsSync('public/token-info.json')) {
+      const tokenInfoPath = fs.existsSync('token-info.json') ? 'token-info.json' : 'public/token-info.json';
+      try {
+        const tokenInfo = JSON.parse(fs.readFileSync(tokenInfoPath, 'utf-8'));
+        return res.json({
+          success: true,
+          message: 'Token already exists',
+          output: `Token already exists: ${tokenInfo.name} (${tokenInfo.symbol}) - Mint: ${tokenInfo.mint}`,
+          tokenInfo
+        });
+      } catch (readError) {
+        console.error('Error reading existing token info:', readError);
+      }
+    }
     
     // Check if accounts exist first
     if (!fs.existsSync('accounts.json')) {
@@ -246,7 +297,7 @@ app.post('/api/create-token', (req, res) => {
     res.json({
       success: true,
       message: 'Token creation started. This may take a few minutes.',
-      output: 'Token creation and distribution started. This process will run in the background and may take a few minutes to complete.\n\nYou can check the progress in the console output.'
+      output: 'Token creation and distribution started. This process will run in the background and may take a few minutes to complete.\n\nYou can check the progress in the console output and refresh the UI when complete.'
     });
   } catch (error) {
     console.error('Error in /api/create-token:', error);
