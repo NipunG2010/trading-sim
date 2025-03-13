@@ -206,36 +206,84 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
+      setError(null);
+      
+      // Use the environment variable or fallback to a direct URL
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
       
       // Fetch accounts
-      const accountsResponse = await fetch('/api/accounts');
-      if (accountsResponse.ok) {
-        const accountsData = await accountsResponse.json();
-        setAccounts(accountsData);
+      console.log('Fetching accounts from API server...');
+      try {
+        const accountsResponse = await fetch(`${apiUrl}/api/accounts`);
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
+          if (Array.isArray(accountsData)) {
+            console.log(`Fetched ${accountsData.length} accounts`);
+            setAccounts(accountsData);
+          } else if (accountsData.error) {
+            console.error('Error fetching accounts:', accountsData.error);
+            addToTerminal(`⚠️ Account Error: ${accountsData.error}`);
+          } else {
+            console.error('Invalid accounts data format');
+            addToTerminal('⚠️ Error: Invalid account data format received');
+          }
+        } else {
+          console.error('Failed to fetch accounts, status:', accountsResponse.status);
+          const errorText = await accountsResponse.text();
+          addToTerminal(`⚠️ Failed to fetch accounts: ${errorText}`);
+        }
+      } catch (error) {
+        console.error('Error fetching accounts:', error);
+        addToTerminal(`⚠️ Account fetch error: ${error instanceof Error ? error.message : String(error)}`);
       }
       
       // Fetch token info
       try {
-        const response = await fetch('/token-info.json');
-        if (response.ok) {
-          const tokenData = await response.json();
-          if (tokenData && tokenData.mint) {
-            setTokenInfo({
-              name: tokenData.name || 'Unknown',
-              symbol: tokenData.symbol || 'UNK',
-              decimals: tokenData.decimals || 9,
-              totalSupply: tokenData.totalSupply || 0,
-              mint: tokenData.mint
-            });
+        // First try the API endpoint
+        const tokenStatusResponse = await fetch(`${apiUrl}/api/token-status`);
+        if (tokenStatusResponse.ok) {
+          const tokenStatus = await tokenStatusResponse.json();
+          if (tokenStatus.success && tokenStatus.isCreated && tokenStatus.tokenInfo) {
+            setTokenInfo(tokenStatus.tokenInfo);
+            console.log('Token info fetched from API:', tokenStatus.tokenInfo);
+          } else {
+            // Fall back to token-info.json file
+            console.log('Token not created yet according to API, trying token-info.json file');
+            const fileResponse = await fetch('/token-info.json');
+            if (fileResponse.ok) {
+              const tokenData = await fileResponse.json();
+              if (tokenData && tokenData.mint) {
+                // Check if it's a real mint address or placeholder
+                const isRealMint = tokenData.mint && 
+                                  !tokenData.mint.includes('DummyMintAddress') &&
+                                  tokenData.mint.length >= 32;
+                
+                if (isRealMint) {
+                  console.log('Real token info found in file');
+                } else {
+                  console.log('Found token info with placeholder mint address');
+                  addToTerminal('ℹ️ Token info has placeholder mint address. Create a real token to proceed.');
+                }
+                
+                setTokenInfo({
+                  name: tokenData.name || 'Unknown',
+                  symbol: tokenData.symbol || 'UNK',
+                  decimals: tokenData.decimals || 9,
+                  totalSupply: tokenData.totalSupply || 0,
+                  mint: tokenData.mint
+                });
+              }
+            }
           }
         }
       } catch (error) {
         console.error('Error fetching token info:', error);
+        addToTerminal(`⚠️ Token info error: ${error instanceof Error ? error.message : String(error)}`);
       }
       
       // Fetch trading status
       try {
-        const statusResponse = await fetch('/api/trading/status');
+        const statusResponse = await fetch(`${apiUrl}/api/trading/status`);
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
           if (statusData) {
@@ -264,7 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       
       // Fetch transactions
       try {
-        const txResponse = await fetch('/api/transactions?limit=50');
+        const txResponse = await fetch(`${apiUrl}/api/transactions?limit=50`);
         if (txResponse.ok) {
           const txData = await txResponse.json();
           setRecentTransactions(txData);
@@ -326,7 +374,8 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   };
   
   // Format address for display (truncate)
-  const formatAddress = (address: string) => {
+  const formatAddress = (address: string | undefined | null): string => {
+    if (!address) return 'Unknown Address';
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
   
@@ -436,6 +485,9 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     setIsCommandRunning(true);
     addToTerminal(`> Executing command: ${command}...`);
     
+    // Use the environment variable or fallback to a direct URL
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    
     const updateTaskStatus = (taskId: string, status: TaskStatus['status']) => {
       setTaskStatuses(prev => 
         prev.map(task => task.id === taskId ? { ...task, status } : task)
@@ -451,26 +503,26 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       
       switch (command) {
         case 'create-accounts':
-          apiEndpoint = '/api/create-accounts';
+          apiEndpoint = `${apiUrl}/api/create-accounts`;
           break;
         case 'test-accounts':
-          apiEndpoint = '/api/test-accounts';
+          apiEndpoint = `${apiUrl}/api/test-accounts`;
           break;
         case 'create-source-wallet':
-          apiEndpoint = '/api/create-source-wallet';
+          apiEndpoint = `${apiUrl}/api/create-source-wallet`;
           break;
         case 'distribute-sol':
-          apiEndpoint = '/api/distribute-sol';
+          apiEndpoint = `${apiUrl}/api/distribute-sol`;
           apiBody = { amount: 0.05 }; // Default SOL amount
           break;
         case 'create-token':
-          apiEndpoint = '/api/create-token';
+          apiEndpoint = `${apiUrl}/api/create-token`;
           break;
         case 'run-trading':
-          apiEndpoint = '/api/run-patterns';
+          apiEndpoint = `${apiUrl}/api/run-patterns`;
           break;
         case 'status':
-          apiEndpoint = '/api/status';
+          apiEndpoint = `${apiUrl}/api/status`;
           break;
         default:
           throw new Error(`Unknown command: ${command}`);
@@ -511,7 +563,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
         // Start polling for token status
         const pollInterval = setInterval(async () => {
           try {
-            const statusResponse = await fetch('/api/token-status');
+            const statusResponse = await fetch(`${apiUrl}/api/token-status`);
             if (!statusResponse.ok) {
               throw new Error(`Token status check failed with status ${statusResponse.status}`);
             }
@@ -619,8 +671,12 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
 
   // Update the renderAccountsTab function to show full address on hover
   const renderAccountsTab = () => {
-    const whaleCount = accounts.filter(a => a.type === 'WHALE').length;
-    const retailCount = accounts.filter(a => a.type === 'RETAIL').length;
+    // Fix type comparison by treating all as strings
+    const isWhaleAccount = (type: string) => type.toUpperCase() === 'WHALE';
+    const isRetailAccount = (type: string) => type.toUpperCase() === 'RETAIL';
+    
+    const whaleCount = accounts.filter(a => isWhaleAccount(String(a.type))).length;
+    const retailCount = accounts.filter(a => isRetailAccount(String(a.type))).length;
     
     return (
       <div className="accounts-tab">
@@ -664,6 +720,9 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                         {tokenInfo.mint && (
                           <span className="full-address">{tokenInfo.mint}</span>
                         )}
+                        {tokenInfo.mint && tokenInfo.mint.includes('DummyMintAddress') && (
+                          <div className="warning-text">⚠️ This is a placeholder mint address. Create a real token in the Admin tab.</div>
+                        )}
                       </td>
                     </tr>
                     <tr>
@@ -706,50 +765,34 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {accounts.map((account, index) => {
-                      // Calculate percentage of total supply if token info exists
-                      const percentage = tokenInfo && tokenInfo.totalSupply && account.balance 
-                        ? ((account.balance / tokenInfo.totalSupply) * 100).toFixed(2) 
-                        : '0.00';
-                          
-                      return (
-                        <tr key={index} className={account.type}>
-                          <td>
-                            <span className={`account-type ${account.type}`}>
-                              {account.type === 'WHALE' ? '🐋 Whale' : '👤 Retail'}
-                            </span>
-                          </td>
-                          <td className="address-container">
-                            <span className="truncated-address">{account.publicKey.slice(0, 4)}...{account.publicKey.slice(-4)}</span>
-                            <span className="full-address">{account.publicKey}</span>
-                            <button 
-                              className="copy-button" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(account.publicKey);
-                                alert('Address copied to clipboard!');
-                              }}
-                              title="Copy address to clipboard"
-                            >
-                              📋
-                            </button>
-                          </td>
-                          <td className="balance">
-                            {formatSolBalance(account.solBalance)} SOL
-                          </td>
-                          {tokenInfo && (
-                            <td className="balance">
-                              {account.balance?.toLocaleString() || '0'} {tokenInfo?.symbol || ''}
-                            </td>
-                          )}
-                          {tokenInfo && <td className="percentage">{percentage}%</td>}
-                        </tr>
-                      );
-                    })}
+                    {accounts.map((account, index) => (
+                      <tr key={index} className={isWhaleAccount(String(account.type)) ? 'whale-account' : 'retail-account'}>
+                        <td>
+                          <span className={`account-type-badge ${isWhaleAccount(String(account.type)) ? 'whale' : 'retail'}`}>
+                            {isWhaleAccount(String(account.type)) ? 'WHALE' : 'RETAIL'}
+                          </span>
+                        </td>
+                        <td className="address-container">
+                          <span className="truncated-address">{formatAddress(account.publicKey)}</span>
+                          <span className="full-address">{account.publicKey}</span>
+                        </td>
+                        <td>{account.solBalance ? formatSolBalance(account.solBalance) : '0.0'} SOL</td>
+                        {tokenInfo && <td>0</td>}
+                        {tokenInfo && <td>0%</td>}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               ) : (
-                <p>No accounts available. Use the Admin tab to create accounts.</p>
+                <div className="no-accounts-message">
+                  <p>No accounts found. Please create accounts from the Admin tab first.</p>
+                  <button 
+                    onClick={() => setActiveTab('admin')}
+                    className="action-button"
+                  >
+                    Go to Admin
+                  </button>
+                </div>
               )}
             </div>
           </>

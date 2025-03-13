@@ -202,20 +202,30 @@ app.post('/api/distribute-sol', (req, res) => {
 // Endpoint to check token creation status
 app.get('/api/token-status', (req, res) => {
   try {
-    // Check if token-info.json exists
+    // Check if token-info.json exists in either location
+    let tokenInfo = null;
+    let tokenLocation = null;
+    
     if (fs.existsSync('token-info.json')) {
-      const tokenInfo = JSON.parse(fs.readFileSync('token-info.json', 'utf-8'));
-      return res.json({
-        success: true,
-        isCreated: true,
-        tokenInfo
-      });
+      tokenInfo = JSON.parse(fs.readFileSync('token-info.json', 'utf-8'));
+      tokenLocation = 'token-info.json';
     } else if (fs.existsSync('public/token-info.json')) {
-      const tokenInfo = JSON.parse(fs.readFileSync('public/token-info.json', 'utf-8'));
+      tokenInfo = JSON.parse(fs.readFileSync('public/token-info.json', 'utf-8'));
+      tokenLocation = 'public/token-info.json';
+    }
+    
+    if (tokenInfo) {
+      // Validate token info
+      const hasRealMint = tokenInfo.mint && 
+                         !tokenInfo.mint.includes('DummyMintAddress') &&
+                         tokenInfo.mint.length >= 32;
+      
       return res.json({
         success: true,
-        isCreated: true,
-        tokenInfo
+        isCreated: hasRealMint,
+        tokenInfo,
+        tokenLocation,
+        hasRealMint
       });
     }
     
@@ -239,17 +249,23 @@ app.post('/api/create-token', (req, res) => {
   try {
     console.log('Creating and distributing token...');
     
-    // Check if token already exists
+    // Check if token already exists with a real mint address
     if (fs.existsSync('token-info.json') || fs.existsSync('public/token-info.json')) {
       const tokenInfoPath = fs.existsSync('token-info.json') ? 'token-info.json' : 'public/token-info.json';
       try {
         const tokenInfo = JSON.parse(fs.readFileSync(tokenInfoPath, 'utf-8'));
-        return res.json({
-          success: true,
-          message: 'Token already exists',
-          output: `Token already exists: ${tokenInfo.name} (${tokenInfo.symbol}) - Mint: ${tokenInfo.mint}`,
-          tokenInfo
-        });
+        
+        // Check if the mint is a real address and not a placeholder
+        if (tokenInfo.mint && !tokenInfo.mint.includes('DummyMintAddress') && tokenInfo.mint.length >= 32) {
+          return res.json({
+            success: true,
+            message: 'Token already exists with a real mint address',
+            output: `Token already exists: ${tokenInfo.name} (${tokenInfo.symbol}) - Mint: ${tokenInfo.mint}`,
+            tokenInfo
+          });
+        } else {
+          console.log('Token info exists but has a dummy mint address. Will create a real token.');
+        }
       } catch (readError) {
         console.error('Error reading existing token info:', readError);
       }
@@ -274,7 +290,7 @@ app.post('/api/create-token', (req, res) => {
     }
     
     // Run token creation in a separate process to avoid blocking
-    const child = exec('node src/create-token.js', (error, stdout, stderr) => {
+    const child = exec('node src/create-real-token.js', (error, stdout, stderr) => {
       if (error) {
         console.error(`Error creating token: ${error.message}`);
         // Don't send response here as it's already sent
