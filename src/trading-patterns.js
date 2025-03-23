@@ -1,16 +1,16 @@
 // src/trading-patterns.js
-import { 
+const { 
   Connection, 
   Keypair, 
   PublicKey, 
   Transaction, 
   sendAndConfirmTransaction 
-} from "@solana/web3.js";
-import { 
+} = require("@solana/web3.js");
+const { 
   getOrCreateAssociatedTokenAccount, 
   createTransferInstruction 
-} from "@solana/spl-token";
-import * as fs from "fs";
+} = require("@solana/spl-token");
+const fs = require("fs");
 
 /**
  * Trading Patterns Implementation
@@ -252,79 +252,54 @@ async function movingAverageCrossover(
         trendStrength = Math.min(trendStrength + 0.1, 1.0);
       } else {
         trend = "neutral";
-        trendStrength = 0;
+        trendStrength = Math.max(trendStrength - 0.1, 0.0);
       }
       
-      // Log trend change
+      // Log trend changes
       if (trend !== previousTrend) {
-        console.log(`\n${new Date().toISOString()} - Trend changed to ${trend.toUpperCase()}`);
-        console.log(`Short MA: ${shortMA.toFixed(2)}, Long MA: ${longMA.toFixed(2)}`);
+        console.log(`\nTrend changed to ${trend}`);
+        console.log(`Short MA: ${shortMA.toFixed(2)}`);
+        console.log(`Long MA: ${longMA.toFixed(2)}`);
       }
       
-      // Determine if whale or retail will trade
+      // Select accounts based on trend and participation
       const isWhaleTrade = Math.random() < whaleParticipation;
+      const sender = isWhaleTrade 
+        ? whaleAccounts[Math.floor(Math.random() * whaleAccounts.length)]
+        : retailAccounts[Math.floor(Math.random() * retailAccounts.length)];
       
-      // Select accounts for trade
-      let sender, receiver;
-      if (isWhaleTrade) {
-        sender = whaleAccounts[getRandomInt(0, whaleAccounts.length - 1)];
-        receiver = retailAccounts[getRandomInt(0, retailAccounts.length - 1)];
-      } else {
-        sender = retailAccounts[getRandomInt(0, retailAccounts.length - 1)];
-        receiver = retailAccounts[getRandomInt(0, retailAccounts.length - 1)];
-        
-        // Make sure sender and receiver are different
-        while (sender.publicKey === receiver.publicKey) {
-          receiver = retailAccounts[getRandomInt(0, retailAccounts.length - 1)];
-        }
-      }
+      const receiver = isWhaleTrade
+        ? retailAccounts[Math.floor(Math.random() * retailAccounts.length)]
+        : whaleAccounts[Math.floor(Math.random() * whaleAccounts.length)];
       
-      // Determine trade amount based on trend and account type
-      let baseAmount;
+      // Calculate trade amount based on trend and account type
+      let baseAmount = getRandomNumber(1000, 5000);
       if (isWhaleTrade) {
-        baseAmount = getRandomNumber(10000, 50000);
-      } else {
-        baseAmount = getRandomNumber(1000, 5000);
+        baseAmount *= volumeMultiplier;
       }
       
       // Adjust amount based on trend
-      let tradeAmount;
-      if (trend === "bullish") {
-        tradeAmount = baseAmount * (1 + trendStrength);
-      } else if (trend === "bearish") {
-        tradeAmount = baseAmount * (1 - trendStrength * 0.5);
-      } else {
-        tradeAmount = baseAmount;
-      }
-      
-      // Apply volume multiplier
-      tradeAmount *= volumeMultiplier;
+      const trendMultiplier = trend === "bullish" ? 1.2 : trend === "bearish" ? 0.8 : 1.0;
+      const amount = Math.floor(baseAmount * trendMultiplier * trendStrength);
       
       // Execute the trade
-      const senderKeypair = createKeypairFromSecretKey(sender.secretKey);
-      const receiverPublicKey = new PublicKey(receiver.publicKey);
-      
       const signature = await transferTokens(
         connection,
-        senderKeypair,
-        receiverPublicKey,
+        createKeypairFromSecretKey(sender.secretKey),
+        new PublicKey(receiver.publicKey),
         tokenMint,
-        tradeAmount,
+        amount,
         decimals
       );
       
-      console.log(`Trade ${i+1}/${totalTrades}: ${isWhaleTrade ? "🐋 Whale" : "👤 Retail"} transferred ${tradeAmount.toFixed(2)} tokens`);
-      console.log(`From: ${sender.publicKey.slice(0, 8)}...`);
-      console.log(`To: ${receiver.publicKey.slice(0, 8)}...`);
-      console.log(`Signature: ${signature.slice(0, 16)}...`);
+      console.log(`Trade ${i + 1}/${totalTrades} executed: ${amount} tokens`);
+      console.log(`Signature: ${signature}`);
       
-      // Wait for the next trade interval
+      // Wait for next trade
       await sleep(tradeIntervalSeconds * 1000);
-      
     } catch (error) {
-      console.error(`Error in trade ${i+1}:`, error);
+      console.error(`Error in trade ${i + 1}: ${error.message}`);
       // Continue with next trade
-      await sleep(5000); // Wait a bit longer after an error
     }
   }
   
@@ -927,7 +902,6 @@ async function volumePatternEngineering(
       console.log(`Trade ${i+1}/${totalTrades}: ${isWhaleTrade ? "🐋 Whale" : "👤 Retail"} transferred ${tradeAmount.toFixed(2)} tokens`);
       console.log(`From: ${sender.publicKey.slice(0, 8)}...`);
       console.log(`To: ${receiver.publicKey.slice(0, 8)}...`);
-      console.log(`Price: ${price.toFixed(2)}, Volume: ${volumeProfile}`);
       
       if (i % 10 === 0 || phase !== "start") {
         console.log(`Cumulative Volume: ${cumulativeVolume.toFixed(0)}`);
@@ -1731,8 +1705,8 @@ async function rsiDivergence(
   console.log("\n✅ RSI Divergence Pattern completed");
 }
 
-// Export the pattern functions
-export {
+// Export all functions
+module.exports = {
   movingAverageCrossover,
   fibonacciRetracement,
   bollingerBandSqueeze,

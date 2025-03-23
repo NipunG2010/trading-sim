@@ -178,7 +178,19 @@
   background-color: var(--secondary-bg);
   border-radius: 8px;
   padding: 1.5rem;
-  height: 400px;
+  height: 600px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+.chart-container h3 {
+  margin: 0 0 1rem 0;
+  color: var(--text-accent);
+  font-size: 1.2rem;
+}
+
+.chart-container iframe {
+  min-height: 500px;
 }
 
 .stats-container {

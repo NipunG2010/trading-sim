@@ -5,6 +5,7 @@ import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { TradingService, TradingPatternType as ServiceTradingPatternType } from '../services/tradingService';
 import { TradingStatus, Account as TypesAccount, Transaction } from '../types';
 import './Dashboard.css';
+import { Button, ButtonGroup, Box, Typography } from '@mui/material';
 
 // Register ChartJS components
 ChartJS.register(
@@ -66,6 +67,36 @@ interface TaskStatus {
   id: string;
   status: 'pending' | 'loading' | 'success' | 'failure' | 'running' | 'error';
 }
+
+// Add command interface
+interface CommandButton {
+  id: string;
+  label: string;
+  command: string;
+  description: string;
+}
+
+// Add commands array
+const COMMAND_BUTTONS: CommandButton[] = [
+  {
+    id: 'create-accounts',
+    label: 'Create Accounts',
+    command: 'solana-keygen grind --starts-with dad:1',
+    description: 'Creates new Solana accounts'
+  },
+  {
+    id: 'create-token',
+    label: 'Create Token',
+    command: 'spl-token create-token --enable-metadata',
+    description: 'Creates a new SPL token'
+  },
+  {
+    id: 'get-balance',
+    label: 'Check Balance',
+    command: 'solana balance',
+    description: 'Check account balance'
+  }
+];
 
 // TradingView widget component
 const TradingViewWidget = () => {
@@ -211,128 +242,59 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       // Use the environment variable or fallback to a direct URL
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
       
-      // Fetch accounts
-      console.log('Fetching accounts from API server...');
-      try {
-        const accountsResponse = await fetch(`${apiUrl}/api/accounts`);
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          if (Array.isArray(accountsData)) {
-            console.log(`Fetched ${accountsData.length} accounts`);
-            setAccounts(accountsData);
-          } else if (accountsData.error) {
-            console.error('Error fetching accounts:', accountsData.error);
-            addToTerminal(`⚠️ Account Error: ${accountsData.error}`);
-          } else {
-            console.error('Invalid accounts data format');
-            addToTerminal('⚠️ Error: Invalid account data format received');
+      // Fetch accounts and token info in parallel
+      const [accountsResponse, tokenInfoResponse] = await Promise.all([
+        fetch(`${apiUrl}/api/accounts`, {
+          headers: {
+            'Cache-Control': 'no-cache'
           }
-        } else {
-          console.error('Failed to fetch accounts, status:', accountsResponse.status);
-          const errorText = await accountsResponse.text();
-          addToTerminal(`⚠️ Failed to fetch accounts: ${errorText}`);
-        }
-      } catch (error) {
-        console.error('Error fetching accounts:', error);
-        addToTerminal(`⚠️ Account fetch error: ${error instanceof Error ? error.message : String(error)}`);
+        }),
+        fetch(`${apiUrl}/api/token-info`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        })
+      ]);
+      
+      // Handle accounts response
+      if (!accountsResponse.ok) {
+        const accountsData = await accountsResponse.json();
+        throw new Error(accountsData.error || 'Failed to fetch accounts');
       }
       
-      // Fetch token info
-      try {
-        // First try the API endpoint
-        const tokenStatusResponse = await fetch(`${apiUrl}/api/token-status`);
-        if (tokenStatusResponse.ok) {
-          const tokenStatus = await tokenStatusResponse.json();
-          if (tokenStatus.success && tokenStatus.isCreated && tokenStatus.tokenInfo) {
-            setTokenInfo(tokenStatus.tokenInfo);
-            console.log('Token info fetched from API:', tokenStatus.tokenInfo);
-          } else {
-            // Fall back to token-info.json file
-            console.log('Token not created yet according to API, trying token-info.json file');
-            const fileResponse = await fetch('/token-info.json');
-            if (fileResponse.ok) {
-              const tokenData = await fileResponse.json();
-              if (tokenData && tokenData.mint) {
-                // Check if it's a real mint address or placeholder
-                const isRealMint = tokenData.mint && 
-                                  !tokenData.mint.includes('DummyMintAddress') &&
-                                  tokenData.mint.length >= 32;
-                
-                if (isRealMint) {
-                  console.log('Real token info found in file');
-                } else {
-                  console.log('Found token info with placeholder mint address');
-                  addToTerminal('ℹ️ Token info has placeholder mint address. Create a real token to proceed.');
-                }
-                
-                setTokenInfo({
-                  name: tokenData.name || 'Unknown',
-                  symbol: tokenData.symbol || 'UNK',
-                  decimals: tokenData.decimals || 9,
-                  totalSupply: tokenData.totalSupply || 0,
-                  mint: tokenData.mint
-                });
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching token info:', error);
-        addToTerminal(`⚠️ Token info error: ${error instanceof Error ? error.message : String(error)}`);
+      const accountsData = await accountsResponse.json();
+      if (Array.isArray(accountsData)) {
+        console.log(`Fetched ${accountsData.length} accounts`);
+        setAccounts(accountsData);
+      } else {
+        throw new Error('Invalid accounts data format');
       }
       
-      // Fetch trading status
-      try {
-        const statusResponse = await fetch(`${apiUrl}/api/trading/status`);
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
-          if (statusData) {
-            setCurrentPattern(statusData.currentPattern || null);
-            setRemainingTime(statusData.remainingTime || null);
-            setTotalDuration(statusData.totalDuration || null);
-            
-            setTradingStatus({
-              isRunning: statusData.isActive || false,
-              currentPattern: statusData.currentPattern || null,
-              remainingTime: statusData.remainingTime || null,
-              startTime: statusData.startTime || null,
-              totalDuration: statusData.totalDuration || null
-            });
-            
-            if (statusData.timeRemaining && statusData.totalDuration) {
-              const elapsed = statusData.totalDuration - statusData.timeRemaining;
-              const percentage = (elapsed / statusData.totalDuration) * 100;
-              setProgressPercentage(Math.min(Math.max(percentage, 0), 100));
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching trading status:', error);
+      // Handle token info response
+      if (!tokenInfoResponse.ok) {
+        const tokenInfoData = await tokenInfoResponse.json();
+        throw new Error(tokenInfoData.error || 'Failed to fetch token info');
       }
       
-      // Fetch transactions
-      try {
-        const txResponse = await fetch(`${apiUrl}/api/transactions?limit=50`);
-        if (txResponse.ok) {
-          const txData = await txResponse.json();
-          setRecentTransactions(txData);
-        }
-      } catch (error) {
-        console.error('Error fetching transactions:', error);
-      }
+      const tokenInfoData = await tokenInfoResponse.json();
+      console.log('Token info:', tokenInfoData);
+      setTokenInfo(tokenInfoData);
+      
+      // Update last refreshed timestamp
+      setLastRefreshed(new Date());
       
       // Mock wallet summary data
       const mockWalletSummary: WalletSummary[] = [
         {
           type: 'whale',
-          count: accounts.filter(a => a.type === 'WHALE').length,
-          totalBalance: accounts.filter(a => a.type === 'WHALE').reduce((sum, a) => sum + a.balance, 0),
+          count: accountsData.filter(a => a.type === 'WHALE').length,
+          totalBalance: accountsData.filter(a => a.type === 'WHALE').reduce((sum, a) => sum + a.balance, 0),
           percentageOfSupply: 60
         },
         {
           type: 'retail',
-          count: accounts.filter(a => a.type === 'RETAIL').length,
-          totalBalance: accounts.filter(a => a.type === 'RETAIL').reduce((sum, a) => sum + a.balance, 0),
+          count: accountsData.filter(a => a.type === 'RETAIL').length,
+          totalBalance: accountsData.filter(a => a.type === 'RETAIL').reduce((sum, a) => sum + a.balance, 0),
           percentageOfSupply: 40
         }
       ];
@@ -346,27 +308,25 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       }));
       setTradingData(mockTradingData);
       
-      // Update last refreshed timestamp
-      setLastRefreshed(new Date());
-      
     } catch (error) {
-      console.error('Error fetching data:', error);
-      setError('Failed to load dashboard data');
+      console.error('Error in fetchData:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred');
+      addToTerminal(`⚠️ Error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Use fetchData in useEffect
+  // Use fetchData in useEffect with a longer interval
   useEffect(() => {
     fetchData();
     
-    // Set up auto-refresh interval (every 30 seconds)
-    const refreshInterval = setInterval(fetchData, 30000);
+    // Set up auto-refresh interval (every 60 seconds instead of 30)
+    const refreshInterval = setInterval(fetchData, 60000);
     
     // Clean up on unmount
     return () => clearInterval(refreshInterval);
-  }, []);
+  }, [fetchData]);
 
   // Format timestamp as date string
   const formatTimestamp = (timestamp: number) => {
@@ -453,7 +413,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   };
 
   // Helper function to update task status
-  const updateTaskStatus = (taskId: string, status: 'pending' | 'loading' | 'success' | 'failure', message?: string) => {
+  const updateTaskStatus = (taskId: string, status: TaskStatus['status'], message?: string) => {
     setTaskStatuses(prev => 
       prev.map(task => 
         task.id === taskId 
@@ -480,136 +440,47 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     }
   };
 
-  // Modified executeCommand to use task status indicators
+  // Add executeCommand function
   const executeCommand = async (command: string) => {
-    setIsCommandRunning(true);
-    addToTerminal(`> Executing command: ${command}...`);
-    
-    // Use the environment variable or fallback to a direct URL
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-    
-    const updateTaskStatus = (taskId: string, status: TaskStatus['status']) => {
-      setTaskStatuses(prev => 
-        prev.map(task => task.id === taskId ? { ...task, status } : task)
-      );
-    };
-    
     try {
-      // Set the task to running
-      updateTaskStatus(command, 'running');
-      
-      let apiEndpoint = '';
-      let apiBody = {};
-      
-      switch (command) {
-        case 'create-accounts':
-          apiEndpoint = `${apiUrl}/api/create-accounts`;
-          break;
-        case 'test-accounts':
-          apiEndpoint = `${apiUrl}/api/test-accounts`;
-          break;
-        case 'create-source-wallet':
-          apiEndpoint = `${apiUrl}/api/create-source-wallet`;
-          break;
-        case 'distribute-sol':
-          apiEndpoint = `${apiUrl}/api/distribute-sol`;
-          apiBody = { amount: 0.05 }; // Default SOL amount
-          break;
-        case 'create-token':
-          apiEndpoint = `${apiUrl}/api/create-token`;
-          break;
-        case 'run-trading':
-          apiEndpoint = `${apiUrl}/api/run-patterns`;
-          break;
-        case 'status':
-          apiEndpoint = `${apiUrl}/api/status`;
-          break;
-        default:
-          throw new Error(`Unknown command: ${command}`);
-      }
-      
-      const response = await fetch(apiEndpoint, {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/terminal/execute-command`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(apiBody)
+        body: JSON.stringify({ command })
       });
-      
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-      
-      const result = await response.json();
-      
-      // Add the output to the terminal
-      if (result.output) {
-        addToTerminal(result.output);
+
+      const data = await response.json();
+      if (data.success) {
+        addToTerminal(`> ${command}\n${data.output}`);
+        if (data.error) {
+          addToTerminal(`Warning: ${data.error}`);
+        }
       } else {
-        addToTerminal(result.message || JSON.stringify(result));
+        addToTerminal(`Error: ${data.error}`);
       }
-      
-      // Update task status
-      if (result.success) {
-        updateTaskStatus(command, 'success');
-      } else {
-        updateTaskStatus(command, 'error');
-      }
-      
-      // If the command is 'create-token', poll for token creation status
-      if (command === 'create-token' && result.success) {
-        addToTerminal('\nWaiting for token creation to complete...');
-        
-        // Start polling for token status
-        const pollInterval = setInterval(async () => {
-          try {
-            const statusResponse = await fetch(`${apiUrl}/api/token-status`);
-            if (!statusResponse.ok) {
-              throw new Error(`Token status check failed with status ${statusResponse.status}`);
-            }
-            
-            const statusResult = await statusResponse.json();
-            
-            if (statusResult.isCreated) {
-              // Token creation complete
-              clearInterval(pollInterval);
-              const { name, symbol, mint, decimals, totalSupply } = statusResult.tokenInfo;
-              addToTerminal(`\n✅ Token creation complete!`);
-              addToTerminal(`Token: ${name} (${symbol})`);
-              addToTerminal(`Mint: ${mint}`);
-              addToTerminal(`Decimals: ${decimals}`);
-              addToTerminal(`Total Supply: ${totalSupply}`);
-              
-              // Refresh accounts and token info
-              fetchData();
-            }
-          } catch (pollError) {
-            console.error('Error polling for token status:', pollError);
-          }
-        }, 5000); // Poll every 5 seconds
-        
-        // Stop polling after 5 minutes
-        setTimeout(() => {
-          clearInterval(pollInterval);
-          addToTerminal('\n⚠️ Token status polling timed out. Please check the console for status.');
-        }, 5 * 60 * 1000);
-      }
-      
-      // Refresh data after certain commands
-      if (['create-accounts', 'create-token', 'distribute-sol'].includes(command)) {
-        fetchData();
-      }
-      
-      return result;
     } catch (error) {
-      console.error(`Error executing command ${command}:`, error);
-      addToTerminal(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
-      updateTaskStatus(command, 'error');
-      return { success: false, message: String(error) };
-    } finally {
-      setIsCommandRunning(false);
+      addToTerminal(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
+
+  // Add CommandButtons component
+  const CommandButtons: React.FC = () => (
+    <ButtonGroup variant="contained" orientation="vertical" sx={{ mb: 2 }}>
+      {COMMAND_BUTTONS.map((btn) => (
+        <Button
+          key={btn.id}
+          onClick={() => executeCommand(btn.command)}
+          title={btn.description}
+          sx={{ mb: 1 }}
+        >
+          {btn.label}
+        </Button>
+      ))}
+    </ButtonGroup>
+  );
 
   // Clear terminal
   const clearTerminal = () => {
@@ -1119,6 +990,79 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     );
   };
 
+  // Implement progress percentage update
+  useEffect(() => {
+    if (tradingStatus.isRunning && tradingStatus.totalDuration && tradingStatus.remainingTime) {
+      const elapsed = tradingStatus.totalDuration - tradingStatus.remainingTime;
+      const percentage = (elapsed / tradingStatus.totalDuration) * 100;
+      setProgressPercentage(Math.min(Math.max(percentage, 0), 100));
+    }
+  }, [tradingStatus]);
+
+  // Initialize available patterns
+  useEffect(() => {
+    const patterns: TradingPattern[] = [
+      {
+        id: 'MOVING_AVERAGE_CROSSOVER',
+        name: 'Moving Average Crossover',
+        description: 'Simulates price movement based on moving average crossover patterns',
+        defaultDuration: 60,
+        defaultIntensity: 5
+      },
+      {
+        id: 'FIBONACCI_RETRACEMENT',
+        name: 'Fibonacci Retracement',
+        description: 'Simulates price movement based on Fibonacci retracement levels',
+        defaultDuration: 90,
+        defaultIntensity: 7
+      },
+      {
+        id: 'BOLLINGER_BANDS',
+        name: 'Bollinger Band',
+        description: 'Simulates price movement based on Bollinger Band interactions',
+        defaultDuration: 45,
+        defaultIntensity: 6
+      },
+      {
+        id: 'MACD_CROSSOVER',
+        name: 'MACD Crossover',
+        description: 'Simulates price movement based on MACD indicator crossovers',
+        defaultDuration: 75,
+        defaultIntensity: 4
+      },
+      {
+        id: 'RSI_DIVERGENCE',
+        name: 'RSI Divergence',
+        description: 'Simulates price movement based on RSI divergence patterns',
+        defaultDuration: 60,
+        defaultIntensity: 5
+      }
+    ];
+    setAvailablePatterns(patterns);
+  }, []);
+
+  // Update trading status
+  const updateTradingStatus = React.useCallback(async () => {
+    try {
+      const status = await tradingService.getTradingStatus();
+      setTradingStatus(status);
+      setCurrentPattern(status.currentPattern);
+      setRemainingTime(status.remainingTime);
+      setStartTime(status.startTime);
+      setTotalDuration(status.totalDuration);
+    } catch (error) {
+      console.error('Error updating trading status:', error);
+    }
+  }, [tradingService]);
+
+  // Poll for trading status updates
+  useEffect(() => {
+    if (tradingStatus.isRunning) {
+      const statusInterval = setInterval(updateTradingStatus, 1000);
+      return () => clearInterval(statusInterval);
+    }
+  }, [tradingStatus.isRunning, updateTradingStatus]);
+
   // Return the dashboard JSX
   return (
     <div className="dashboard">
@@ -1186,8 +1130,18 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
             ) : (
               <>
                 <div className="chart-container">
-                  <h3>Real-Time Price Chart (DOGE/USD)</h3>
-                  <TradingViewWidget />
+                  <h3>Real-Time Trading Activity</h3>
+                  <iframe
+                    src={`https://www.geckoterminal.com/solana/pools/${tokenMint}?embed=1&info=0&swaps=1`}
+                    title="GeckoTerminal Embed"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                      borderRadius: '8px',
+                      backgroundColor: 'transparent'
+                    }}
+                  />
                 </div>
                 
                 <div className="stats-container">
@@ -1213,7 +1167,37 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
         {activeTab === 'transactions' && renderTransactionsTab()}
         {activeTab === 'wallets' && renderWalletsTab()}
         {activeTab === 'settings' && renderSettingsTab()}
-        {activeTab === 'admin' && renderAdminTab()}
+        {activeTab === 'admin' && (
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ width: '200px' }}>
+              <Typography variant="h6" gutterBottom>
+                Quick Commands
+              </Typography>
+              <CommandButtons />
+            </Box>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h6" gutterBottom>
+                Terminal Output
+              </Typography>
+              <div 
+                ref={adminOutputRef}
+                style={{
+                  height: '400px',
+                  overflowY: 'auto',
+                  backgroundColor: '#1e1e1e',
+                  color: '#fff',
+                  padding: '8px',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'pre-wrap'
+                }}
+              >
+                {adminOutput.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            </Box>
+          </Box>
+        )}
       </div>
     </div>
   );

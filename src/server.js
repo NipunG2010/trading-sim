@@ -1,11 +1,10 @@
-import express from 'express';
-import cors from 'cors';
-import { execSync, exec } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
-import { Connection } from '@solana/web3.js';
-import {
+const express = require('express');
+const cors = require('cors');
+const { execSync, exec } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+const { Connection } = require('@solana/web3.js');
+const {
   movingAverageCrossover,
   fibonacciRetracement,
   bollingerBandSqueeze,
@@ -15,17 +14,26 @@ import {
   rsiDivergence,
   loadAccounts,
   loadTokenInfo
-} from './trading-patterns.js';
+} = require('./trading-patterns.js');
+const { terminalRouter } = require('./server/routes/terminal.js');
 
-// Convert import.meta.url to __dirname equivalent in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Serve static files from public directory
+app.use(express.static('public'));
+
+// Mount the terminal router
+app.use('/api', terminalRouter);
 
 // Create Solana connection
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
@@ -60,7 +68,7 @@ const readAccountsFile = () => {
 // API endpoint to get accounts
 app.get('/api/accounts', (req, res) => {
   try {
-    const accountsPath = path.join(__dirname, '..', 'accounts.json');
+    const accountsPath = path.join(__dirname, 'accounts.json');
     if (!fs.existsSync(accountsPath)) {
       return res.status(404).json({ error: 'Accounts file not found. Please run create-accounts first.' });
     }
@@ -236,11 +244,7 @@ app.get('/api/token-status', (req, res) => {
     });
   } catch (error) {
     console.error('Error in /api/token-status:', error);
-    res.status(500).json({ 
-      success: false, 
-      isCreated: false,
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -680,6 +684,17 @@ app.get('/api/check-accounts', (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({
+    success: false,
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message
+  });
 });
 
 // Start the server

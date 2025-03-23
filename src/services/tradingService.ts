@@ -15,13 +15,11 @@ import { Account, Transaction, TradingStatus, BalanceInfo, WalletType } from '..
 
 // Trading pattern types
 export type TradingPatternType = 
-  | 'moving_average' 
-  | 'fibonacci' 
-  | 'bollinger' 
-  | 'volume_pattern'
-  | 'organic'
-  | 'macd'
-  | 'rsi';
+  | 'MOVING_AVERAGE_CROSSOVER'
+  | 'FIBONACCI_RETRACEMENT'
+  | 'BOLLINGER_BANDS'
+  | 'MACD_CROSSOVER'
+  | 'RSI_DIVERGENCE';
 
 // Trading pattern configuration
 export interface TradingPatternConfig {
@@ -144,6 +142,10 @@ export class TradingService {
   private tokenMint: string;
   private totalSupply: number = 1000000000;
   private mintKeypair: Keypair;
+  private isRunning: boolean;
+  private currentPattern: TradingPatternConfig | null;
+  private startTime: number | null;
+  private totalDuration: number | null;
   private mockStatus: TradingStatus = {
     isRunning: false,
     currentPattern: null,
@@ -162,6 +164,10 @@ export class TradingService {
     this.connection = connection;
     this.tokenMint = tokenMint;
     this.mintKeypair = Keypair.generate();
+    this.isRunning = false;
+    this.currentPattern = null;
+    this.startTime = null;
+    this.totalDuration = null;
     
     // Initialize token
     this.initToken();
@@ -258,49 +264,35 @@ export class TradingService {
   }>> {
     return [
       {
-        id: 'moving_average',
+        id: 'MOVING_AVERAGE_CROSSOVER',
         name: 'Moving Average Crossover',
         description: 'Simulates price movement based on moving average crossover patterns',
         defaultDuration: 60,
         defaultIntensity: 5
       },
       {
-        id: 'fibonacci',
+        id: 'FIBONACCI_RETRACEMENT',
         name: 'Fibonacci Retracement',
         description: 'Simulates price movement based on Fibonacci retracement levels',
         defaultDuration: 90,
         defaultIntensity: 6
       },
       {
-        id: 'bollinger',
+        id: 'BOLLINGER_BANDS',
         name: 'Bollinger Band',
         description: 'Simulates price movement based on Bollinger Band interactions',
         defaultDuration: 45,
         defaultIntensity: 4
       },
       {
-        id: 'volume_pattern',
-        name: 'Volume Analysis',
-        description: 'Simulates price movement based on volume analysis patterns',
-        defaultDuration: 60,
-        defaultIntensity: 5
-      },
-      {
-        id: 'organic',
-        name: 'Organic Growth',
-        description: 'Simulates natural, organic price movement with low manipulation',
-        defaultDuration: 120,
-        defaultIntensity: 3
-      },
-      {
-        id: 'macd',
+        id: 'MACD_CROSSOVER',
         name: 'MACD Crossover',
         description: 'Simulates price movement based on MACD indicator crossovers',
         defaultDuration: 75,
         defaultIntensity: 7
       },
       {
-        id: 'rsi',
+        id: 'RSI_DIVERGENCE',
         name: 'RSI Divergence',
         description: 'Simulates price movement based on RSI divergence patterns',
         defaultDuration: 60,
@@ -334,27 +326,40 @@ export class TradingService {
    * Get trading status
    */
   public async getTradingStatus(): Promise<TradingStatus> {
-    return { ...this.mockStatus };
+    if (!this.isRunning || !this.currentPattern || !this.startTime || !this.totalDuration) {
+      return {
+        isRunning: false,
+        currentPattern: null,
+        remainingTime: null,
+        startTime: null,
+        totalDuration: null
+      };
+    }
+
+    const elapsed = Date.now() - this.startTime;
+    const remaining = Math.max(0, this.totalDuration - elapsed);
+
+    return {
+      isRunning: this.isRunning,
+      currentPattern: this.currentPattern.type,
+      remainingTime: remaining,
+      startTime: this.startTime,
+      totalDuration: this.totalDuration
+    };
   }
   
   /**
    * Start trading
    */
   public async startTrading(pattern: TradingPatternConfig): Promise<boolean> {
-    if (this.mockStatus.isRunning) {
+    if (this.isRunning) {
       await this.stopTrading();
     }
     
-    const startTime = Date.now();
-    const totalDuration = pattern.duration * 60 * 1000; // Convert to milliseconds
-    
-    this.mockStatus = {
-      isRunning: true,
-      currentPattern: pattern.type,
-      startTime,
-      totalDuration,
-      remainingTime: totalDuration
-    };
+    this.isRunning = true;
+    this.currentPattern = pattern;
+    this.startTime = Date.now();
+    this.totalDuration = pattern.duration * 60 * 1000; // Convert minutes to milliseconds
     
     // Set up interval to update the remaining time
     this.mockInterval = setInterval(() => {
@@ -409,13 +414,10 @@ export class TradingService {
       this.mockInterval = null;
     }
     
-    this.mockStatus = {
-      isRunning: false,
-      currentPattern: null,
-      remainingTime: null,
-      startTime: null as unknown as number,
-      totalDuration: null as unknown as number
-    };
+    this.isRunning = false;
+    this.currentPattern = null;
+    this.startTime = null;
+    this.totalDuration = null;
     
     return true;
   }

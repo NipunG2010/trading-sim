@@ -1,30 +1,20 @@
-# .gitignore
 node_modules/
+build/
+.env
+.env.development
+*.log
+coverage/
 dist/
-*.env
-accounts.json
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-/dist
-
-# misc
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Solana
+.idea/
+.vscode/
+*.swp
+*.swo
+.cache/
+public/token-info.json
 token-info.json
+token-config.json
+accounts.json
+source-wallet.json
+*.pem
+*.key
