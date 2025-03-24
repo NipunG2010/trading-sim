@@ -1,8 +1,8 @@
-const { Router } = require('express');
+const express = require('express');
+const router = express.Router();
 const { exec } = require('child_process');
 const { promisify } = require('util');
 
-const router = Router();
 const execPromise = promisify(exec);
 
 // Predefined Solana commands
@@ -52,38 +52,29 @@ const validateCommand = (command) => {
   return command;
 };
 
-router.post('/execute-command', async (req, res) => {
+// Terminal command execution endpoint
+router.post('/execute', async (req, res) => {
   try {
     const { command } = req.body;
-    
-    // Validate command
-    const validatedCommand = validateCommand(command);
-    
-    // Add timeout to prevent hanging
-    const timeoutMs = 30000; // 30 seconds
-    const { stdout, stderr } = await Promise.race([
-      execPromise(validatedCommand),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Command timed out')), timeoutMs)
-      )
-    ]);
-    
-    // Send both stdout and stderr
-    res.json({
-      success: true,
-      output: stdout,
-      error: stderr
+    if (!command) {
+      return res.status(400).json({ error: 'Command is required' });
+    }
+
+    // For now, just echo the command
+    res.json({ 
+      success: true, 
+      output: `Received command: ${command}`,
+      command
     });
   } catch (error) {
-    console.error('Terminal command error:', error);
-    res.status(error.status || 500).json({
-      success: false,
-      error: error.message || 'An error occurred while executing the command'
-    });
+    console.error('Terminal execution error:', error);
+    res.status(500).json({ error: 'Failed to execute command' });
   }
 });
 
-module.exports = {
-  router,
-  SOLANA_COMMANDS
-}; 
+// Terminal status endpoint
+router.get('/status', (req, res) => {
+  res.json({ status: 'ready' });
+});
+
+module.exports = { router, SOLANA_COMMANDS }; 

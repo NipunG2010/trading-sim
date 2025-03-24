@@ -2,18 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
-const { router: terminalRouter } = require('./routes/terminal.js');
+const { router: terminalRouter } = require('./routes/terminal');
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
-  methods: ['GET', 'POST'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors());
 app.use(express.json());
 
 // Cache control middleware
@@ -24,6 +19,9 @@ const cacheControl = (req, res, next) => {
 
 // API routes first
 app.use('/api', cacheControl);
+
+// API routes
+app.use('/api/terminal', terminalRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -49,7 +47,7 @@ app.get('/api/accounts', async (req, res) => {
 // Get token info endpoint
 app.get('/api/token-info', async (req, res) => {
   try {
-    const tokenInfoPath = path.join(__dirname, '../../public/token-info.json');
+    const tokenInfoPath = path.join(__dirname, '../../token-info.json');
     const tokenInfo = await fs.readFile(tokenInfoPath, 'utf-8');
     res.json(JSON.parse(tokenInfo));
   } catch (error) {
@@ -70,7 +68,6 @@ app.post('/api/create-token', async (req, res) => {
       return res.status(400).json({ error: 'Mint address is required' });
     }
 
-    // Update token info file
     const tokenInfo = {
       mint: mintAddress,
       name: "SolTrader Token",
@@ -79,7 +76,7 @@ app.post('/api/create-token', async (req, res) => {
       totalSupply: 1000000000
     };
 
-    const tokenInfoPath = path.join(__dirname, '../../public/token-info.json');
+    const tokenInfoPath = path.join(__dirname, '../../token-info.json');
     await fs.writeFile(tokenInfoPath, JSON.stringify(tokenInfo, null, 2));
 
     res.json({ success: true, tokenInfo });
@@ -89,10 +86,7 @@ app.post('/api/create-token', async (req, res) => {
   }
 });
 
-// Terminal routes
-app.use('/api/terminal', terminalRouter);
-
-// Add connection status endpoint
+// Status endpoint
 app.get('/api/status', (req, res) => {
   res.json({ status: 'connected' });
 });
@@ -108,13 +102,10 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../build/index.html'));
 });
 
-// Error handling
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    error: 'Internal Server Error'
-  });
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // Start server

@@ -25,8 +25,8 @@ export class StrategyFactory {
   ) {
     this.connection = connection;
     this.marketDataService = new MarketDataService(connection, targetToken);
-    this.tradingService = new TradingService(connection, targetToken);
     this.walletService = new WalletService(connection);
+    this.tradingService = new TradingService(connection, targetToken, this.walletService);
   }
 
   async createStrategy(
