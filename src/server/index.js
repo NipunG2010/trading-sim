@@ -5,7 +5,7 @@ const fs = require('fs').promises;
 const { router: terminalRouter } = require('./routes/terminal');
 
 const app = express();
-const port = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
@@ -88,29 +88,44 @@ app.post('/api/create-token', async (req, res) => {
 
 // Status endpoint
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'connected' });
+  res.json({ status: 'ready' });
 });
 
-// Serve static files from the React build directory
-app.use(express.static(path.join(__dirname, '../../build'), {
-  index: false, // Don't serve index.html for all routes
-  maxAge: '30s' // Cache static files for 30 seconds
-}));
-
-// Serve React app for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../build/index.html'));
-});
+// In development mode, we don't serve static files from the server
+// The React development server handles this
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the React build directory
+  app.use(express.static(path.join(__dirname, '../../build')));
+  
+  // Serve React app for all other routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../build/index.html'));
+  });
+} else {
+  // In development mode, handle all non-API routes by redirecting to the React dev server
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.redirect(`http://localhost:3000${req.path}`);
+    } else {
+      res.status(404).json({ error: 'Not found' });
+    }
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  console.error('Server Error:', err);
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-  console.log(`Frontend URL: http://localhost:3000`);
-  console.log(`Backend URL: http://localhost:${port}`);
+// Start server with error handling
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please try a different port or kill the process using this port.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+  }
 }); 

@@ -250,7 +250,7 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 2. Verify accounts: `npm run test-accounts-js`
 3. Create source wallet: `npm run create-source-wallet`
 4. Fund source wallet: `solana airdrop 2 <SOURCE_WALLET_PUBLIC_KEY> --url https://api.devnet.solana.com`
-5. Distribute SOL to all accounts: `npm run distribute-sol -- ./source-wallet.json 0.05`
+5. Distribute SOL to all accounts: `npm run distribute-sol -- ./source-wallet.json`
 6. Create and distribute token: `npm run create-token-js`
 7. Start the UI dashboard: `npm start`
 8. Use the dashboard to:
@@ -258,3 +258,185 @@ The goal is to help you maintain a big picture as well as the progress of the ta
    - View transaction history
    - Analyze wallet distribution
    - Configure and run trading patterns
+
+# Trading Simulator Project Analysis
+
+## Project Overview
+- Name: trading-sim
+- Version: 0.5.0
+- Type: Solana Trading Simulator
+- Stack: React + Express + Solana Web3
+- Environment: Development
+
+## Current State Analysis
+
+### Core Components
+1. Token Creation System
+   - Multiple implementation files
+   - Mixed JS/TS codebase
+   - Needs consolidation and type safety
+
+2. Trading Engine
+   - Complex pattern implementation
+   - Large monolithic files
+   - Heavy client-side processing
+
+3. Frontend Dashboard
+   - React with Material-UI
+   - Chart.js for visualizations
+   - Needs performance optimization
+
+4. Backend Server
+   - Express-based
+   - Handles trading logic
+   - Needs better separation of concerns
+
+### Critical Issues
+
+#### 1. Code Quality
+- [!] Large monolithic files need refactoring
+  * trading-patterns.js (1719 lines)
+  * server.js (704 lines)
+  * trading-engine.ts (655 lines)
+- [!] Inconsistent TypeScript usage
+- [!] Multiple implementations of similar functionality
+- [!] Missing type definitions
+- [!] Inadequate error handling
+
+#### 2. Security
+- [!] Sensitive data in environment files
+- [!] Wallet private keys in JSON files
+- [!] Missing API rate limiting
+- [!] Potential data exposure in logs
+- [!] Incomplete input validation
+
+#### 3. Performance
+- [!] Large bundle size (MUI)
+- [!] No code splitting
+- [!] Heavy client-side computations
+- [!] Unoptimized network calls
+- [!] Missing caching strategy
+
+#### 4. Testing
+- [!] Missing unit tests
+- [!] Incomplete JSDoc comments
+- [!] Undocumented trading patterns
+- [!] Missing error handling docs
+
+#### 5. Dependencies
+- [!] Outdated @solana/spl-token
+- [!] Mixed dev/prod dependencies
+- [!] Unused test libraries
+- [!] Potential security vulnerabilities
+- [!] Outdated TypeScript types
+
+## Improvement Recommendations
+
+### 1. Code Organization
+- [ ] Refactor large files into smaller modules
+- [ ] Standardize on TypeScript across codebase
+- [ ] Implement consistent file naming
+- [ ] Add comprehensive type definitions
+- [ ] Improve error handling
+
+### 2. Security Enhancements
+- [ ] Implement secure environment variable handling
+- [ ] Add API rate limiting
+- [ ] Improve wallet key security
+- [ ] Add input validation
+- [ ] Implement proper error logging
+
+### 3. Performance Optimization
+- [ ] Implement code splitting
+- [ ] Optimize MUI imports
+- [ ] Add caching layer
+- [ ] Batch network requests
+- [ ] Move heavy computation to backend
+
+### 4. Testing & Documentation
+- [ ] Add unit tests
+- [ ] Create API documentation
+- [ ] Add JSDoc comments
+- [ ] Document trading patterns
+- [ ] Create error handling guide
+
+### 5. Dependency Management
+- [ ] Update @solana/spl-token
+- [ ] Audit and update dependencies
+- [ ] Remove unused packages
+- [ ] Fix security vulnerabilities
+- [ ] Update TypeScript types
+
+## File Structure
+```
+trading-sim/
+├── src/
+│   ├── components/     # React components
+│   ├── trading/       # Trading logic
+│   ├── scripts/       # Utility scripts
+│   ├── server/        # Backend code
+│   ├── services/      # Shared services
+│   └── styles/        # CSS styles
+├── public/           # Static assets
+└── scripts/          # Build scripts
+```
+
+## Development Guidelines
+
+### Code Style
+- Use TypeScript for all new code
+- Maximum file size: 300 lines
+- Use ESLint + Prettier
+- Follow React best practices
+- Implement proper error handling
+
+### Security
+- Never commit sensitive data
+- Use environment variables
+- Implement rate limiting
+- Validate all inputs
+- Secure wallet handling
+
+### Performance
+- Lazy load components
+- Optimize bundle size
+- Use proper caching
+- Batch API calls
+- Monitor memory usage
+
+### Testing
+- Write unit tests
+- Document APIs
+- Add JSDoc comments
+- Test error handling
+- Create integration tests
+
+## Lessons
+
+### Project Specific
+- Use TypeScript consistently
+- Keep files under 300 lines
+- Document trading patterns
+- Handle errors properly
+- Secure sensitive data
+
+### Technical Decisions
+- React for frontend
+- Express for backend
+- Solana Web3 for blockchain
+- Material-UI for components
+- Chart.js for visualizations
+
+## Task Tracking
+- Use GitHub Issues
+- Follow Git Flow
+- Write clear commits
+- Create pull requests
+- Review code changes
+
+## Build Process
+- npm run build
+- npm run test
+- npm run lint
+- npm run format
+- npm run start:dev
