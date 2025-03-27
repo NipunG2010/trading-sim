@@ -15,13 +15,8 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": [
-      "node",
-      "jest",
-      "react",
-      "react-dom",
-      "winston"
-    ],
+    "types": ["node"],
+    "typeRoots": [],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
