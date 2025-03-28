@@ -2,6 +2,7 @@ export type WalletType = 'WHALE' | 'RETAIL';
 
 export interface Account {
     publicKey: string;
+    privateKey: number[];
     type: WalletType;
     balance: number;
     status: string;
@@ -31,4 +32,10 @@ export interface BalanceInfo {
         type: WalletType;
     }[];
     timestamp: number;
+}
+
+export interface TransactionOptions {
+    commitment?: string;
+    delayBetweenTransactions?: number;
+    estimatedFee?: number;
 }
