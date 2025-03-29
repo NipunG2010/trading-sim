@@ -1,504 +1,161 @@
-import { Connection, PublicKey, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
+import { HybridSolanaAdapter } from './SolanaAdapter';
+import { LangChain } from 'langchain';
+import { generateText, streamText } from 'ai';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { z } from 'zod';
 import { 
-  TOKEN_PROGRAM_ID, 
-  AccountLayout,
-  getMint,
-  getAccount,
-  getAssociatedTokenAddress,
-  createMint,
-  createAssociatedTokenAccount,
-  mintTo
-} from '@solana/spl-token';
-// Remove Node.js specific imports
-// import path from 'path';
-import { Account, Transaction, TradingStatus, BalanceInfo, WalletType } from '../types';
+  TradingPatternConfig, 
+  TradingDataPoint,
+  TokenTransaction,
+  TradingStatus 
+} from '../types';
 
-// Trading pattern types
-export type TradingPatternType = 
-  | 'MOVING_AVERAGE_CROSSOVER'
-  | 'FIBONACCI_RETRACEMENT'
-  | 'BOLLINGER_BANDS'
-  | 'MACD_CROSSOVER'
-  | 'RSI_DIVERGENCE';
-
-// Trading pattern configuration
-export interface TradingPatternConfig {
-  type: TradingPatternType;
-  duration: number; // in minutes
-  intensity: number; // 1-10 scale
-}
-
-// Trading data point
-export interface TradingDataPoint {
-  timestamp: number;
-  price: number;
-  volume: number;
-  tradeCount: number;
-  whalePercentage: number;
-}
-
-// Wallet type
-export interface WalletSummary {
-  type: 'whale' | 'retail';
-  count: number;
-  totalBalance: number;
-  percentageOfSupply: number;
-}
-
-// Token transaction
-export interface TokenTransaction {
-  timestamp: number;
-  sender: string;
-  receiver: string;
-  amount: number;
-  isWhale: boolean;
-  signature: string;
-}
-
-interface AccountDetails {
-  publicKey: string;
-  secretKey: string;
-  balance: number;
-  tokenBalance: number;
-  isWhale: boolean;
-  lastActivity: number;
-  totalTransactions: number;
-  profitLoss: number;
-}
-
-// Rename to avoid conflict with imported Account type
-interface LocalAccount {
-    publicKey: string;
-    type: 'WHALE' | 'RETAIL';
-    balance: number;
-    status: string;
-}
-
-const generateMockData = (count: number): TradingDataPoint[] => {
-  const data: TradingDataPoint[] = [];
-  const now = Date.now();
-  let price = 0.001;
-  
-  for (let i = 0; i < count; i++) {
-    const timestamp = now - (count - i - 1) * 1000 * 60;
-    price = price + (Math.random() - 0.5) * 0.0001;
-    
-    data.push({
-      timestamp,
-      price: Math.max(0.0001, price),
-      volume: Math.floor(Math.random() * 1000000),
-      tradeCount: Math.floor(Math.random() * 100),
-      whalePercentage: Math.random() * 100
-    });
+declare module 'eliza' {
+  interface Eliza {
+    configure(options: { personality: string; knowledgeBase: string }): void;
+    processUpdate(update: string): void;
   }
-  
-  return data;
-};
+}
 
-const generateMockTransactions = (count: number): TokenTransaction[] => {
-  const transactions: TokenTransaction[] = [];
-  const now = Date.now();
-  
-  for (let i = 0; i < count; i++) {
-    const timestamp = now - (count - i - 1) * 1000 * 60;
-    
-    transactions.push({
-      timestamp,
-      sender: `Wallet${Math.floor(Math.random() * 50)}`,
-      receiver: `Wallet${Math.floor(Math.random() * 50)}`,
-      amount: Math.floor(Math.random() * 1000000),
-      isWhale: Math.random() > 0.7,
-      signature: `${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
-    });
-  }
-  
-  return transactions;
-};
+const TradingPatternSchema = z.object({
+  type: z.enum([
+    'MOVING_AVERAGE_CROSSOVER',
+    'FIBONACCI_RETRACEMENT',
+    'BOLLINGER_BANDS',
+    'MACD_CROSSOVER',
+    'RSI_DIVERGENCE'
+  ]),
+  duration: z.number().positive(),
+  intensity: z.number().min(1).max(10)
+});
 
-const generateMockWalletSummary = (): WalletSummary[] => {
-  return [
-    {
-      type: 'whale',
-      count: 20,
-      totalBalance: 600000000,
-      percentageOfSupply: 60
-    },
-    {
-      type: 'retail',
-      count: 30,
-      totalBalance: 400000000,
-      percentageOfSupply: 40
-    }
-  ];
-};
+const MODEL_MAPPINGS = {
+  MOVING_AVERAGE_CROSSOVER: 'anthropic/claude-3.5-sonnet',
+  FIBONACCI_RETRACEMENT: 'meta-llama/llama-3.1-405b-instruct',
+  BOLLINGER_BANDS: 'google/gemini-pro',
+  MACD_CROSSOVER: 'mistralai/mistral-7b-instruct',
+  RSI_DIVERGENCE: 'anthropic/claude-3-opus'
+} as const;
 
-/**
- * Trading service for interacting with the Solana blockchain.
- * In a real implementation, this would make API calls to a backend server.
- * For now, it simulates the behavior with mock data.
- */
 export class TradingService {
-  private connection: Connection;
+  private adapter: HybridSolanaAdapter;
+  private langChain: LangChain;
+  private openRouter: ReturnType<typeof createOpenRouter>;
+  private eliza: any;
   private tokenMint: string;
-  private totalSupply: number = 1000000000;
-  private mintKeypair: Keypair;
-  private isRunning: boolean;
-  private currentPattern: TradingPatternConfig | null;
-  private startTime: number | null;
-  private totalDuration: number | null;
-  private mockStatus: TradingStatus = {
-    isRunning: false,
-    currentPattern: null,
-    remainingTime: null,
-    startTime: null as unknown as number,
-    totalDuration: null as unknown as number
-  };
-  private mockInterval: NodeJS.Timeout | null = null;
-  private mockData: TradingDataPoint[] = [];
-  private mockTransactions: TokenTransaction[] = [];
-  private mockAccounts: { publicKey: PublicKey; secretKey: Uint8Array }[] = [];
-  private mintInfo: any = null; // Store mint info instead of Token instance
-  private accounts: LocalAccount[] = []; // Using the locally defined LocalAccount interface
-  
-  constructor(connection: Connection, tokenMint: string) {
-    this.connection = connection;
+  private isRunning: boolean = false;
+  private currentPattern: TradingPatternConfig | null = null;
+  private monitoringInterval: NodeJS.Timeout | null = null;
+
+  constructor(rpcEndpoint: string, tokenMint: string) {
+    this.adapter = new HybridSolanaAdapter(rpcEndpoint, 'mainnet');
+    this.langChain = new LangChain();
+    this.openRouter = createOpenRouter({
+      apiKey: process.env.OPENROUTER_API_KEY || ''
+    });
     this.tokenMint = tokenMint;
-    this.mintKeypair = Keypair.generate();
-    this.isRunning = false;
-    this.currentPattern = null;
-    this.startTime = null;
-    this.totalDuration = null;
-    
-    // Initialize token
-    this.initToken();
-    
-    // Initialize mock data
-    this.initMockData();
-    
-    // Load accounts
-    this.loadAccounts();
+    this.eliza = new (require('eliza'))();
+    this.initAI();
   }
-  
-  private async initToken(): Promise<void> {
+
+  private async initAI(): Promise<void> {
     try {
-      // In a real implementation, we would fetch token info from the blockchain
-      // For now, we'll use mock data
-      this.mintInfo = {
-        address: new PublicKey(this.tokenMint),
-        supply: BigInt(this.totalSupply),
-        decimals: 9,
-        isInitialized: true,
-        freezeAuthority: null,
-        mintAuthority: this.mintKeypair.publicKey
-      };
+      await this.langChain.init({
+        model: 'gpt-4',
+        tools: ['trading_analysis', 'risk_assessment']
+      });
+      this.eliza.configure({
+        personality: 'trading-assistant',
+        knowledgeBase: 'crypto-markets'
+      });
     } catch (error) {
-      console.error('Error initializing token:', error);
+      console.error('AI initialization failed:', error);
+      throw new Error('Failed to initialize AI components');
     }
   }
-  
-  private initMockData(): void {
-    this.mockData = generateMockData(100);
-    this.mockTransactions = generateMockTransactions(50);
-  }
-  
-  private loadAccounts(): void {
+
+  public async startTrading(pattern: TradingPatternConfig): Promise<boolean> {
     try {
-      // In a browser environment, we use fetch instead of fs
-      fetch('/accounts.json')
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Failed to fetch accounts.json');
-          }
-          return response.json();
-        })
-        .then(accountsData => {
-          this.accounts = accountsData.map((account: any) => ({
-            publicKey: account.publicKey,
-            type: account.type === 'WHALE' ? 'WHALE' : 'RETAIL',
-            balance: 0,
-            status: 'ACTIVE'
-          }));
-        })
-        .catch(error => {
-          console.error('Error loading accounts:', error);
-          // Generate mock accounts if loading fails
-          this.accounts = Array.from({ length: 50 }, (_, i) => ({
-            publicKey: `Wallet${i}`,
-            type: i < 25 ? 'WHALE' : 'RETAIL',
-            balance: Math.random() * 10000000,
-            status: 'ACTIVE'
-          }));
-        });
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      // Generate mock accounts if loading fails
-      this.accounts = Array.from({ length: 50 }, (_, i) => ({
-        publicKey: `Wallet${i}`,
-        type: i < 25 ? 'WHALE' : 'RETAIL',
-        balance: Math.random() * 10000000,
-        status: 'ACTIVE'
-      }));
-    }
-  }
-  
-  private async getTokenBalance(publicKey: PublicKey): Promise<number> {
-    try {
-      // In a real implementation, we would fetch the token balance from the blockchain
-      // For now, we'll return a random balance
-      return Math.random() * 10000000;
-    } catch (error) {
-      console.error(`Error getting token balance for ${publicKey.toString()}:`, error);
-      return 0;
-    }
-  }
-  
-  /**
-   * Get available trading patterns
-   */
-  public async getAvailablePatterns(): Promise<Array<{
-    id: TradingPatternType;
-    name: string;
-    description: string;
-    defaultDuration: number;
-    defaultIntensity: number;
-  }>> {
-    return [
-      {
-        id: 'MOVING_AVERAGE_CROSSOVER',
-        name: 'Moving Average Crossover',
-        description: 'Simulates price movement based on moving average crossover patterns',
-        defaultDuration: 60,
-        defaultIntensity: 5
-      },
-      {
-        id: 'FIBONACCI_RETRACEMENT',
-        name: 'Fibonacci Retracement',
-        description: 'Simulates price movement based on Fibonacci retracement levels',
-        defaultDuration: 90,
-        defaultIntensity: 6
-      },
-      {
-        id: 'BOLLINGER_BANDS',
-        name: 'Bollinger Band',
-        description: 'Simulates price movement based on Bollinger Band interactions',
-        defaultDuration: 45,
-        defaultIntensity: 4
-      },
-      {
-        id: 'MACD_CROSSOVER',
-        name: 'MACD Crossover',
-        description: 'Simulates price movement based on MACD indicator crossovers',
-        defaultDuration: 75,
-        defaultIntensity: 7
-      },
-      {
-        id: 'RSI_DIVERGENCE',
-        name: 'RSI Divergence',
-        description: 'Simulates price movement based on RSI divergence patterns',
-        defaultDuration: 60,
-        defaultIntensity: 6
+      const validatedPattern = TradingPatternSchema.parse(pattern);
+      if (this.isRunning) await this.stopTrading();
+
+      const modelType = validatedPattern.type as keyof typeof MODEL_MAPPINGS;
+      const modelName = MODEL_MAPPINGS[modelType];
+      const model = this.openRouter.chatModel(modelName);
+
+      const { text: analysis } = await generateText({
+        model,
+        prompt: `Analyze this trading pattern for risks: ${JSON.stringify(validatedPattern)}`
+      });
+
+      const riskAssessment = await this.langChain.assessRisk(validatedPattern);
+      if (riskAssessment.riskLevel > 7) {
+        throw new Error(`High risk detected: ${riskAssessment.reason}`);
       }
-    ];
-  }
-  
-  /**
-   * Get trading data
-   */
-  public async getTradingData(): Promise<TradingDataPoint[]> {
-    return [...this.mockData];
-  }
-  
-  /**
-   * Get recent transactions
-   */
-  public async getRecentTransactions(limit: number = 20): Promise<TokenTransaction[]> {
-    return this.mockTransactions.slice(-limit);
-  }
-  
-  /**
-   * Get wallet summary
-   */
-  public async getWalletSummary(): Promise<WalletSummary[]> {
-    return generateMockWalletSummary();
-  }
-  
-  /**
-   * Get trading status
-   */
-  public async getTradingStatus(): Promise<TradingStatus> {
-    if (!this.isRunning || !this.currentPattern || !this.startTime || !this.totalDuration) {
-      return {
-        isRunning: false,
-        currentPattern: null,
-        remainingTime: null,
-        startTime: null,
-        totalDuration: null
-      };
+
+      this.isRunning = true;
+      this.currentPattern = validatedPattern;
+      const wallet = await this.adapter.generateKeypair();
+      await this.adapter.executeTrade(validatedPattern, wallet);
+      this.startMonitoring(validatedPattern);
+      return true;
+    } catch (error) {
+      console.error('Trading start failed:', error);
+      this.isRunning = false;
+      this.currentPattern = null;
+      throw error;
     }
+  }
 
-    const elapsed = Date.now() - this.startTime;
-    const remaining = Math.max(0, this.totalDuration - elapsed);
+  private async startMonitoring(pattern: TradingPatternConfig): Promise<void> {
+    if (this.monitoringInterval) clearInterval(this.monitoringInterval);
 
+    const modelType = pattern.type as keyof typeof MODEL_MAPPINGS;
+    const modelName = MODEL_MAPPINGS[modelType];
+    const model = this.openRouter.chatModel(modelName);
+
+    this.monitoringInterval = setInterval(async () => {
+      try {
+        const stream = streamText({
+          model,
+          prompt: `Monitor trading pattern: ${JSON.stringify(pattern)}`
+        });
+        for await (const update of stream) {
+          this.eliza.processUpdate(update);
+          this.handleTradeUpdate(update);
+        }
+      } catch (error) {
+        console.error('Monitoring error:', error);
+      }
+    }, 5000);
+  }
+
+  private handleTradeUpdate(update: string): void {
+    console.log('Trade update:', update);
+  }
+
+  public async stopTrading(): Promise<boolean> {
+    try {
+      if (this.monitoringInterval) {
+        clearInterval(this.monitoringInterval);
+        this.monitoringInterval = null;
+      }
+      this.isRunning = false;
+      this.currentPattern = null;
+      return true;
+    } catch (error) {
+      console.error('Failed to stop trading:', error);
+      throw error;
+    }
+  }
+
+  public async getTradingStatus(): Promise<TradingStatus> {
     return {
       isRunning: this.isRunning,
-      currentPattern: this.currentPattern.type,
-      remainingTime: remaining,
-      startTime: this.startTime,
-      totalDuration: this.totalDuration
+      currentPattern: this.currentPattern,
+      remainingTime: this.currentPattern 
+        ? this.currentPattern.duration * 60 * 1000 - (Date.now() - (this.currentPattern as any).startTime)
+        : null
     };
   }
-  
-  /**
-   * Start trading
-   */
-  public async startTrading(pattern: TradingPatternConfig): Promise<boolean> {
-    if (this.isRunning) {
-      await this.stopTrading();
-    }
-    
-    this.isRunning = true;
-    this.currentPattern = pattern;
-    this.startTime = Date.now();
-    this.totalDuration = pattern.duration * 60 * 1000; // Convert minutes to milliseconds
-    
-    // Set up interval to update the remaining time
-    this.mockInterval = setInterval(() => {
-      if (this.mockStatus.remainingTime !== null && this.mockStatus.remainingTime > 0) {
-        this.mockStatus.remainingTime = Math.max(0, this.mockStatus.remainingTime - 1000);
-        
-        // Generate new data point every minute
-        if (this.mockStatus.remainingTime % 60000 === 0) {
-          const lastPoint = this.mockData[this.mockData.length - 1];
-          const priceChange = (Math.random() - 0.5) * 0.0002;
-          const newPrice = Math.max(0.0001, lastPoint.price + priceChange);
-          
-          const newPoint: TradingDataPoint = {
-            timestamp: Date.now(),
-            price: newPrice,
-            volume: Math.floor(Math.random() * 1000000),
-            tradeCount: Math.floor(Math.random() * 100),
-            whalePercentage: Math.random() * 100
-          };
-          
-          this.mockData.push(newPoint);
-          
-          // Generate new transaction
-          const newTransaction: TokenTransaction = {
-            timestamp: Date.now(),
-            sender: `Wallet${Math.floor(Math.random() * 50)}`,
-            receiver: `Wallet${Math.floor(Math.random() * 50)}`,
-            amount: Math.floor(Math.random() * 1000000),
-            isWhale: Math.random() > 0.7,
-            signature: `${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
-          };
-          
-          this.mockTransactions.push(newTransaction);
-        }
-        
-        // Stop when time is up
-        if (this.mockStatus.remainingTime === 0) {
-          this.stopTrading();
-        }
-      }
-    }, 1000);
-    
-    return true;
-  }
-  
-  /**
-   * Stop trading
-   */
-  public async stopTrading(): Promise<boolean> {
-    if (this.mockInterval) {
-      clearInterval(this.mockInterval);
-      this.mockInterval = null;
-    }
-    
-    this.isRunning = false;
-    this.currentPattern = null;
-    this.startTime = null;
-    this.totalDuration = null;
-    
-    return true;
-  }
-  
-  /**
-   * Get token info
-   */
-  public async getTokenInfo(): Promise<{
-    mint: string;
-    name: string;
-    symbol: string;
-    decimals: number;
-    totalSupply: number;
-  }> {
-    return {
-      mint: this.tokenMint,
-      name: 'Test Token',
-      symbol: 'TEST',
-      decimals: 9,
-      totalSupply: this.totalSupply
-    };
-  }
-
-  public async getAllAccounts(): Promise<Account[]> {
-    try {
-      // In a browser environment, we would fetch accounts from an API
-      // For now, we'll convert our local accounts to the Account type
-      return this.accounts.map(account => ({
-        publicKey: account.publicKey,
-        type: account.type as WalletType,
-        balance: account.balance,
-        status: account.status
-      }));
-    } catch (error) {
-      console.error('Error in getAllAccounts:', error);
-      throw error;
-    }
-  }
-
-  public async getBalanceInfo(): Promise<BalanceInfo> {
-    const accounts = await this.getAllAccounts();
-    const timestamp = Date.now();
-    
-    const balances = accounts.map(account => ({
-      publicKey: account.publicKey,
-      balance: account.balance,
-      type: account.type
-    }));
-    
-    return {
-      balances,
-      timestamp
-    };
-  }
-
-  public async getTransactions(limit: number = 10): Promise<Transaction[]> {
-    try {
-      // In a real implementation, we would fetch transactions from the blockchain
-      // For now, we'll convert our mock transactions to the Transaction type
-      return this.mockTransactions.slice(-limit).map(tx => ({
-        id: tx.signature,
-        from: tx.sender,
-        to: tx.receiver,
-        amount: tx.amount,
-        timestamp: tx.timestamp,
-        type: Math.random() > 0.5 ? 'BUY' : 'SELL'
-      }));
-    } catch (error) {
-      console.error('Error getting transactions:', error);
-      throw error;
-    }
-  }
-
-  private async processAccountsData(accountsData: any[]): Promise<Account[]> {
-    // Remove the recursive call to getAllAccounts to prevent infinite recursion
-    
-    return accountsData.map(account => ({
-      publicKey: account.publicKey,
-      type: account.isWhale ? 'WHALE' : 'RETAIL',
-      balance: account.tokenBalance || 0,
-      status: 'ACTIVE'
-    }));
-  }
-} 
+}

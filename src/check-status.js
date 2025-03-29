@@ -4,8 +4,9 @@ const fs = require('fs');
 async function checkStatus() {
   try {
     // Read token info
-    const tokenInfo = JSON.parse(fs.readFileSync('./public/token-info.json'));
-    const tradingService = new TradingService(null, tokenInfo.mint);
+    const tokenInfo = JSON.parse(fs.readFileSync('./public/token-info.json', 'utf-8'));
+    const connection = new Connection(process.env.RPC_URL || 'https://api.mainnet-beta.solana.com');
+    const tradingService = new TradingService(connection, tokenInfo.mint);
     
     const status = await tradingService.getTradingStatus();
     

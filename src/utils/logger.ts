@@ -2,7 +2,7 @@ import winston, { Logger } from 'winston';
 import { TradingError } from '../trading/types/TradingPatternTypes';
 import { mkdirSync } from 'fs';
 
-interface LogMetadata {
+interface LogMetadata extends winston.Logform.TransformableInfo {
   level: string;
   message: string;
   timestamp: string;
@@ -12,7 +12,8 @@ interface LogMetadata {
 }
 
 // Custom format for trading-specific logs
-const tradingFormat = winston.format.printf(({ level, message, timestamp, ...metadata }: LogMetadata) => {
+const tradingFormat = winston.format.printf((info) => {
+  const { level, message, timestamp, ...metadata } = info as LogMetadata;
   let msg = `${timestamp} [${level}]: ${message}`;
   
   if (metadata.error) {

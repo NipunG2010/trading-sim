@@ -98,5 +98,4 @@ export class RecoveryService {
     this.failedTransactions.delete(signature);
     this.logger.info('Cleared failed transaction', { signature });
   }
-} 
-}; 
+}

@@ -1,5 +1,9 @@
 import { Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
-import { Jupiter, RouteInfo, TOKEN_LIST_URL } from '@jup-ag/core';
+import { Jupiter } from '@jup-ag/core';
+import JSBI from 'jsbi';
+import { TOKEN_LIST_URL } from '../config/constants';
+import { toJSBIAmount, fromJSBIAmount } from '../utils/jsbi-utils';
+import type { RouteInfo } from '../types/jupiter-types';
 import { TokenInfo } from '@solana/spl-token-registry';
 
 interface OrderBookState {
@@ -51,7 +55,7 @@ export class JupiterService {
             });
 
             // Load token list
-            const response = await fetch(TOKEN_LIST_URL);
+            const response = await fetch(TOKEN_LIST_URL.mainnet); // Use mainnet URL by default
             const tokens = await response.json();
             this.tokenList = tokens;
 
@@ -74,7 +78,7 @@ export class JupiterService {
             const routes = await this.jupiter.computeRoutes({
                 inputMint: params.inputMint,
                 outputMint: params.outputMint,
-                amount: params.amount,
+                amount: toJSBIAmount(params.amount),
                 slippageBps: params.slippageBps
             });
 
@@ -105,13 +109,11 @@ export class JupiterService {
                 throw new Error('No valid route found');
             }
 
-            const { transactions } = await this.jupiter.exchange({
-                route,
+            const { swapTransaction } = await this.jupiter.exchange({
+                routeInfo: route,
                 userPublicKey: params.wallet.publicKey
             });
 
-            // Execute transaction
-            const { swapTransaction } = transactions;
             if (!swapTransaction) {
                 throw new Error('No swap transaction found');
             }

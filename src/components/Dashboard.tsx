@@ -2,8 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ArcElement } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { TradingService, TradingPatternType as ServiceTradingPatternType } from '../services/tradingService';
-import { TradingStatus, Account as TypesAccount, Transaction } from '../types';
+import { TradingService } from '../services/tradingService';
+import { TradingStatus, TradingPatternConfig } from '../types';
+
+interface Account {
+  type: 'WHALE' | 'RETAIL';
+  balance: number;
+  status: string;
+  publicKey: string;
+  tokenBalance?: number;
+}
+
+interface Transaction {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+  type: string;
+  timestamp: number;
+}
 import './Dashboard.css';
 import { Button, ButtonGroup, Box, Typography } from '@mui/material';
 
@@ -22,7 +39,7 @@ ChartJS.register(
 );
 
 // Use the service's TradingPatternType
-type TradingPatternType = ServiceTradingPatternType;
+type TradingPatternType = TradingPatternConfig['type'];
 
 interface TokenTransaction {
   id: string;
@@ -55,7 +72,7 @@ interface TokenInfo {
   mint?: string;
 }
 
-interface Account extends TypesAccount {
+interface Account {
   solBalance: number;
 }
 
@@ -189,7 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
     startTime: null,
     totalDuration: null
   });
-  const [currentPattern, setCurrentPattern] = useState<string | null>(null);
+  const [currentPattern, setCurrentPattern] = useState<TradingPatternConfig | null>(null);
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [totalDuration, setTotalDuration] = useState<number | null>(null);
@@ -214,7 +231,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
   const adminOutputRef = useRef<HTMLDivElement>(null);
 
   // Create trading service
-  const tradingService = new TradingService(connection, tokenMint);
+  const tradingService = new TradingService(connection.rpcEndpoint, tokenMint);
   
   // Add a function to update the admin terminal output
   const addToTerminal = (text: string) => {
@@ -380,10 +397,10 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       
       // Refresh trading status
       const status = await tradingService.getTradingStatus();
-      setCurrentPattern(status.currentPattern as string | null);
-      setRemainingTime(status.remainingTime);
-      setStartTime(status.startTime);
-      setTotalDuration(status.totalDuration);
+      setCurrentPattern(status.currentPattern);
+      setRemainingTime(status.remainingTime ?? null);
+      setStartTime(status.startTime ?? null);
+      setTotalDuration(status.totalDuration ?? null);
       
       // Switch to overview tab
       setActiveTab('overview');
@@ -402,7 +419,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
       
       // Refresh trading status
       const status = await tradingService.getTradingStatus();
-      setCurrentPattern(status.currentPattern as string | null);
+      setCurrentPattern(status.currentPattern);
       setRemainingTime(status.remainingTime);
       setStartTime(status.startTime);
       setTotalDuration(status.totalDuration);
@@ -1074,7 +1091,7 @@ const Dashboard: React.FC<DashboardProps> = ({ connection, tokenMint }) => {
         
         {currentPattern && remainingTime && (
           <div className="trading-status">
-            <p>Running: <strong>{currentPattern}</strong></p>
+            <p>Running: <strong>{currentPattern?.type}</strong></p>
             <p>Remaining: {formatRemainingTime(remainingTime)}</p>
             <div className="progress-container">
               <div className="progress-bar" style={{ width: `${progressPercentage}%` }}></div>
